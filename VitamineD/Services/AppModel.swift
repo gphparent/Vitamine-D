@@ -42,6 +42,12 @@ final class AppModel {
     private let fallbackService = ModelledWeatherService()
     private var tickTask: Task<Void, Never>?
 
+    /// Décalage appliqué à l'horloge, en secondes. Toujours nul en usage
+    /// normal ; seules les captures d'écran automatisées s'en servent.
+    private let clockOffset: TimeInterval
+
+    private var currentDate: Date { Date().addingTimeInterval(clockOffset) }
+
     init(store: Store = Store(),
          weatherService: any WeatherProviding = OpenMeteoService()) {
         self.store = store
@@ -66,6 +72,16 @@ final class AppModel {
                                       name: manual.name,
                                       altitude: manual.altitude)
         }
+
+        if LaunchOptions.wantsSolarNoon, let place = self.location {
+            let noon = SolarCalculator.solarNoon(
+                on: Date(), latitude: place.latitude, longitude: place.longitude,
+                calendar: Calendar(identifier: .gregorian))
+            self.clockOffset = noon.timeIntervalSince(Date())
+        } else {
+            self.clockOffset = 0
+        }
+        self.now = currentDate
     }
 
     // MARK: - Environnement
@@ -200,7 +216,7 @@ final class AppModel {
                 let interval: UInt64 = self.activeSession != nil ? 1 : 30
                 try? await Task.sleep(for: .seconds(interval))
                 guard !Task.isCancelled else { return }
-                self.now = Date()
+                self.now = self.currentDate
                 self.updateProgress()
 
                 // Le plan est reconstruit au changement de jour, sinon les

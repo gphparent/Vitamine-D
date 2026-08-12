@@ -41,4 +41,18 @@ enum LaunchOptions {
 
     /// Onglet à afficher au démarrage.
     static var initialTab: String? { value(for: tabKey) }
+
+    /// `-vdInstant midi`
+    static let instantKey = "-vdInstant"
+
+    /// Demande de se placer au midi solaire du lieu imposé.
+    ///
+    /// Les captures d'écran sont prises quand l'intégration continue veut bien
+    /// tourner, souvent en pleine nuit sur le fuseau visé. L'application affiche
+    /// alors très correctement qu'il n'y a rien à récolter — ce qui est juste,
+    /// mais ne montre rien. Se placer au moment le plus intéressant de la
+    /// journée rend la capture représentative.
+    static var wantsSolarNoon: Bool {
+        value(for: instantKey)?.lowercased() == "midi"
+    }
 }

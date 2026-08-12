@@ -101,12 +101,29 @@ jobs:
 
           for onglet in today session history profile; do
             xcrun simctl terminate "$UDID" "$BUNDLE" 2>/dev/null || true
-            xcrun simctl launch "$UDID" "$BUNDLE" -vdLieu "$LIEU" -vdOnglet "$onglet"
-            # Laisse le temps à la requête météo d'aboutir et à la vue de se poser.
-            sleep 8
+            # `-vdInstant midi` place l'horloge au midi solaire du lieu : sans
+            # cela, la capture est prise à l'heure où le serveur veut bien
+            # tourner, souvent en pleine nuit sur le fuseau visé.
+            xcrun simctl launch "$UDID" "$BUNDLE" \
+              -vdLieu "$LIEU" -vdOnglet "$onglet" -vdInstant midi
+            # Laisse le temps aux deux requêtes météo d'aboutir et à la vue de
+            # se poser.
+            sleep 14
             xcrun simctl io "$UDID" screenshot "captures/$onglet.png"
             echo "capturé : $onglet"
           done
+
+          cat > captures/LISEZ-MOI.txt <<'NOTE'
+          Captures produites automatiquement dans un simulateur iPhone.
+
+          L'horloge de l'application a été placée au midi solaire de Montréal,
+          sinon la capture tomberait à l'heure d'exécution du serveur — souvent
+          en pleine nuit sur ce fuseau, où l'application affiche à juste titre
+          qu'il n'y a rien à récolter.
+
+          L'onglet Historique est vide : aucune sortie n'a jamais été
+          enregistrée sur ce simulateur, qui est recréé à chaque exécution.
+          NOTE
 
       - name: Publier les captures
         if: always()
