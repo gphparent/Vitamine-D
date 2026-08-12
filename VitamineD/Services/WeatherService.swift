@@ -74,12 +74,12 @@ struct OpenMeteoService: WeatherProviding {
             return value
         }
 
-        let air = airPayload.hourly
+        let airHours = airPayload.hourly
         var uvByTime: [Int: (uv: Double, clearSky: Double)] = [:]
-        uvByTime.reserveCapacity(air.time.count)
-        for (index, timestamp) in air.time.enumerated() {
-            uvByTime[timestamp] = (value(air.uv_index, index),
-                                   value(air.uv_index_clear_sky, index))
+        uvByTime.reserveCapacity(airHours.time.count)
+        for (index, timestamp) in airHours.time.enumerated() {
+            uvByTime[timestamp] = (value(airHours.uv_index, index),
+                                   value(airHours.uv_index_clear_sky, index))
         }
 
         let hours = weatherPayload.hourly
