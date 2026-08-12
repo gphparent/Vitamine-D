@@ -1,0 +1,55 @@
+name: Compilation et tests
+
+# Les exécuteurs macOS de GitHub fournissent le Mac que le projet exige.
+# Gratuit sur un dépôt public ; sur un dépôt privé, les minutes macOS sont
+# décomptées au tarif ×10 du quota mensuel.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Simulateur iOS
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Environnement
+        run: |
+          xcodebuild -version
+          echo "--- simulateurs iOS disponibles ---"
+          xcrun simctl list devices available | grep -A 20 "iOS" | head -30
+
+      - name: Choisir un simulateur
+        id: sim
+        run: |
+          # On prend le premier iPhone disponible plutôt qu'un modèle codé en
+          # dur : le catalogue des images GitHub change à chaque mise à jour.
+          NAME=$(xcrun simctl list devices available \
+                 | grep -oE 'iPhone [0-9]+[A-Za-z ]*' | head -1 | xargs)
+          echo "Simulateur retenu : $NAME"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Compiler et tester
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project VitamineD.xcodeproj \
+            -scheme VitamineD \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -resultBundlePath TestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee build.log
+
+      - name: Conserver les résultats
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resultats-tests
+          path: |
+            TestResults.xcresult
+            build.log
+          retention-days: 14
