@@ -66,7 +66,7 @@ VitamineD/
 └── Views/          Today · Session · History · Profile · Clothing · DayChart
 ```
 
-`Engine/` ne dépend que de Foundation : aucun accès réseau, aucun état global, aucune interface. C'est là que vit toute la physique, et c'est ce qui la rend testable — 60 tests couvrent la position solaire, les doses et le planificateur.
+`Engine/` ne dépend que de Foundation : aucun accès réseau, aucun état global, aucune interface. C'est là que vit toute la physique, et c'est ce qui la rend testable — 64 tests, répartis en quatre suites, couvrent la position solaire, les doses et le planificateur.
 
 `AppModel` est le seul état partagé, exposé via `@Observable` et l'environnement SwiftUI.
 
