@@ -50,7 +50,16 @@ final class AppModel {
         self.history = store.load([SessionRecord].self, for: .history) ?? []
         self.activeSession = store.load(ExposureSession.self, for: .activeSession)
 
-        if let manual = store.load(ResolvedLocation.self, for: .manualLocation) {
+        // Une position imposée sur la ligne de commande prime sur tout le
+        // reste : c'est ce qui permet à l'intégration continue de produire des
+        // captures d'écran sans dépendre du GPS du simulateur.
+        if let forced = LaunchOptions.forcedLocation {
+            self.location = forced
+            locationService.setManual(latitude: forced.latitude,
+                                      longitude: forced.longitude,
+                                      name: forced.name,
+                                      altitude: forced.altitude)
+        } else if let manual = store.load(ResolvedLocation.self, for: .manualLocation) {
             self.location = manual
             locationService.setManual(latitude: manual.latitude,
                                       longitude: manual.longitude,

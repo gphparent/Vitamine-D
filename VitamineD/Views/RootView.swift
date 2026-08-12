@@ -4,9 +4,20 @@ struct RootView: View {
 
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
-    @State private var selection: Tab = .today
+    @State private var selection: Tab = Tab(launchArgument: LaunchOptions.initialTab)
 
-    enum Tab: Hashable { case today, session, history, profile }
+    enum Tab: Hashable {
+        case today, session, history, profile
+
+        init(launchArgument: String?) {
+            switch launchArgument {
+            case "session":  self = .session
+            case "history":  self = .history
+            case "profile":  self = .profile
+            default:         self = .today
+            }
+        }
+    }
 
     var body: some View {
         TabView(selection: $selection) {

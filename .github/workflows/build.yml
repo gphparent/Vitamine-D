@@ -53,3 +53,65 @@ jobs:
             TestResults.xcresult
             build.log
           retention-days: 14
+
+  captures:
+    name: Captures d'écran
+    runs-on: macos-latest
+    # Indépendant des tests : même si une assertion échoue, on veut voir à quoi
+    # ressemble l'application.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compiler l'application
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project VitamineD.xcodeproj \
+            -scheme VitamineD \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath DerivedData \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Démarrer un simulateur
+        run: |
+          UDID=$(xcrun simctl list devices available -j \
+                 | jq -r '[.devices[][] | select(.isAvailable) | select(.name | startswith("iPhone"))][0].udid')
+          test -n "$UDID" && test "$UDID" != null || { echo "aucun iPhone disponible"; exit 1; }
+          echo "Simulateur : $UDID"
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          # Barre d'état figée : sans cela, l'heure et la batterie du serveur
+          # apparaissent dans les captures.
+          xcrun simctl status_bar "$UDID" override \
+            --time "13:00" --batteryState charged --batteryLevel 100 \
+            --cellularBars 4 --wifiBars 3 || true
+
+      - name: Installer et photographier chaque écran
+        run: |
+          set -e
+          BUNDLE=ca.gphparent.VitamineD
+          APP=$(find DerivedData/Build/Products -maxdepth 2 -name 'VitamineD.app' | head -1)
+          echo "Application : $APP"
+          xcrun simctl install "$UDID" "$APP"
+          mkdir -p captures
+
+          # Montréal, pour que les chiffres affichés soient ceux d'un lieu réel.
+          LIEU="45.5019,-73.5674,Montréal"
+
+          for onglet in today session history profile; do
+            xcrun simctl terminate "$UDID" "$BUNDLE" 2>/dev/null || true
+            xcrun simctl launch "$UDID" "$BUNDLE" -vdLieu "$LIEU" -vdOnglet "$onglet"
+            # Laisse le temps à la requête météo d'aboutir et à la vue de se poser.
+            sleep 8
+            xcrun simctl io "$UDID" screenshot "captures/$onglet.png"
+            echo "capturé : $onglet"
+          done
+
+      - name: Publier les captures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: captures-ecran
+          path: captures/*.png
+          retention-days: 14
