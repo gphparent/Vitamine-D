@@ -186,14 +186,7 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Ce que cela donne")
                     .font(.subheadline.weight(.medium))
-                Text("Votre peau rougit à partir de "
-                     + String(format: "%.0f J/m²", selected.medJoulesPerSquareMetre)
-                     + ", contre "
-                     + String(format: "%.0f", SkinType.i.medJoulesPerSquareMetre)
-                     + " pour le type I et "
-                     + String(format: "%.0f", SkinType.vi.medJoulesPerSquareMetre)
-                     + " pour le type VI. C'est ce seuil qui fixe toutes les durées "
-                     + "que l'application vous donnera.")
+                Text(thresholdSentence(for: selected))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -209,6 +202,20 @@ struct OnboardingView: View {
                 }
             }
         }
+    }
+
+    /// Construite en plusieurs affectations plutôt qu'en une chaîne de `+` :
+    /// l'inférence de type de Swift s'étrangle sur les concaténations longues
+    /// mêlant littéraux et `String(format:)`.
+    private func thresholdSentence(for type: SkinType) -> String {
+        let mine = String(format: "%.0f", type.medJoulesPerSquareMetre)
+        let lightest = String(format: "%.0f", SkinType.i.medJoulesPerSquareMetre)
+        let darkest = String(format: "%.0f", SkinType.vi.medJoulesPerSquareMetre)
+        var sentence = "Votre peau rougit à partir de \(mine) J/m², contre "
+        sentence += "\(lightest) pour le type I et \(darkest) pour le type VI. "
+        sentence += "C'est ce seuil qui fixe toutes les durées que l'application "
+        sentence += "vous donnera."
+        return sentence
     }
 
     // MARK: - Navigation
@@ -259,7 +266,7 @@ struct OnboardingView: View {
                     .multilineTextAlignment(.leading)
                 Spacer(minLength: 8)
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(selected ? Theme.vitaminD : .tertiary)
+                    .foregroundStyle(selected ? Theme.vitaminD : Color.secondary.opacity(0.45))
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
