@@ -65,12 +65,26 @@ enum Theme {
     static let goldLight = Color(red: 244/255, green: 214/255, blue: 136/255)
     static let goldDark = Color(red: 135/255, green: 96/255, blue: 30/255)
 
-    /// Contour de carte : filet d'or à 28 %.
-    static let cardEdge = goldDark.opacity(0.28)
+    /// Or des inscriptions, qui suit l'apparence du système.
+    ///
+    /// L'or foncé ne tient pas sur une carte sombre — 2,7:1, sous le seuil
+    /// lisible. En apparence sombre c'est donc l'or clair qui porte les
+    /// capitales et les filets. Une couleur figée aurait rendu les têtes de
+    /// carte pratiquement invisibles la nuit.
+    static let capsGold = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark ? UIColor(gold) : UIColor(goldDark)
+    })
+
+    /// Contour de carte : filet d'or à 28 %, 30 % de l'or clair la nuit.
+    static let cardEdge = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(gold).withAlphaComponent(0.30)
+            : UIColor(goldDark).withAlphaComponent(0.28)
+    })
 
     /// Filet d'or, en remplacement du séparateur gris à l'intérieur des cartes.
     static var goldRule: LinearGradient {
-        LinearGradient(colors: [goldDark.opacity(0.45), .clear],
+        LinearGradient(colors: [capsGold.opacity(0.45), .clear],
                        startPoint: .leading, endPoint: .trailing)
     }
 

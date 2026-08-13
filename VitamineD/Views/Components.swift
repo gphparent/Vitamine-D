@@ -40,7 +40,7 @@ struct Card<Content: View>: View {
                     if let systemImage { Image(systemName: systemImage) }
                 }
                 .labelStyle(.titleAndIcon)
-                .foregroundStyle(isPlain ? AnyShapeStyle(.secondary) : AnyShapeStyle(Theme.goldDark))
+                .foregroundStyle(isPlain ? AnyShapeStyle(.secondary) : AnyShapeStyle(Theme.capsGold))
 
                 if !isPlain { GoldRule() }
             }
@@ -491,13 +491,22 @@ struct RecommendationCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
+        // Le fond de carte d'abord, le lavis d'or par-dessus — et non l'un à la
+        // place de l'autre. Posé sur le ciel, un lavis à 12 % composait
+        // directement sur l'azur nocturne, sous une encre prévue pour un fond
+        // clair : la phrase de facteur limitant tombait à 1,2:1.
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(isPrimary ? Theme.vitaminD.opacity(0.12) : Color(uiColor: .secondarySystemGroupedBackground))
+                .fill(Theme.cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(isPrimary ? Theme.vitaminD.opacity(0.12) : .clear)
+                )
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(isPrimary ? Theme.vitaminD.opacity(0.4) : .clear, lineWidth: 1)
+                .strokeBorder(isPrimary ? Theme.vitaminD.opacity(0.45) : Theme.cardEdge,
+                              lineWidth: 1)
         )
     }
 }

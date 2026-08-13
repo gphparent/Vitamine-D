@@ -163,6 +163,9 @@ struct UserProfile: Codable, Equatable, Sendable {
          notifyDailyPlan: Bool,
          dailyPlanMinuteOfDay: Int,
          hasCompletedOnboarding: Bool,
+         readsHealthKit: Bool = false,
+         writesHealthKit: Bool = false,
+         writesVitaminDAsDietary: Bool = false,
          tracksCircadianLight: Bool,
          wakeMinuteOfDay: Int,
          targetWakeMinuteOfDay: Int,
@@ -179,6 +182,9 @@ struct UserProfile: Codable, Equatable, Sendable {
         self.notifyDailyPlan = notifyDailyPlan
         self.dailyPlanMinuteOfDay = dailyPlanMinuteOfDay
         self.hasCompletedOnboarding = hasCompletedOnboarding
+        self.readsHealthKit = readsHealthKit
+        self.writesHealthKit = writesHealthKit
+        self.writesVitaminDAsDietary = writesVitaminDAsDietary
         self.tracksCircadianLight = tracksCircadianLight
         self.wakeMinuteOfDay = wakeMinuteOfDay
         self.targetWakeMinuteOfDay = targetWakeMinuteOfDay
