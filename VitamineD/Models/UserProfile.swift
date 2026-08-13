@@ -8,6 +8,11 @@ struct UserProfile: Codable, Equatable, Sendable {
     var tanLevel: TanLevel
     var exposure: BodyExposure
 
+    /// Ascendance déclarée, conservée pour pouvoir réafficher le questionnaire
+    /// tel qu'il a été rempli. N'intervient plus dans aucun calcul une fois le
+    /// phototype fixé.
+    var ancestry: Ancestry?
+
     /// Objectif quotidien de synthèse cutanée, en UI.
     var dailyGoalIU: Double
 
@@ -21,16 +26,21 @@ struct UserProfile: Codable, Equatable, Sendable {
     /// Heure de la notification du plan quotidien, en minutes depuis minuit.
     var dailyPlanMinuteOfDay: Int
 
+    /// L'accueil du premier lancement a-t-il été traversé ?
+    var hasCompletedOnboarding: Bool
+
     static let `default` = UserProfile(
         skinType: .iii,
         age: 35,
         tanLevel: .none,
         exposure: BodyExposure(),
+        ancestry: nil,
         dailyGoalIU: 1000,
         burnAlertFraction: 0.6,
         notifyWindowOpening: true,
         notifyDailyPlan: true,
-        dailyPlanMinuteOfDay: 8 * 60
+        dailyPlanMinuteOfDay: 8 * 60,
+        hasCompletedOnboarding: false
     )
 
     /// Rendement lié à l'âge.
@@ -48,5 +58,62 @@ struct UserProfile: Codable, Equatable, Sendable {
     /// Dose érythémale minimale effective, acclimatation comprise, en J/m².
     var effectiveMED: Double {
         skinType.medJoulesPerSquareMetre * tanLevel.medMultiplier
+    }
+
+    // MARK: - Décodage tolérant
+
+    /// Chaque champ est lu séparément, avec repli sur la valeur par défaut.
+    ///
+    /// Le décodage synthétisé échouerait dès qu'une version ajoute un champ,
+    /// et l'application repartirait alors d'un profil vierge : phototype,
+    /// tenue et objectif effacés sans un mot. Pour des réglages que
+    /// l'utilisateur a pris la peine de saisir, c'est inacceptable.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let fallback = UserProfile.default
+
+        skinType = (try? container.decode(SkinType.self, forKey: .skinType)) ?? fallback.skinType
+        age = (try? container.decode(Int.self, forKey: .age)) ?? fallback.age
+        tanLevel = (try? container.decode(TanLevel.self, forKey: .tanLevel)) ?? fallback.tanLevel
+        exposure = (try? container.decode(BodyExposure.self, forKey: .exposure)) ?? fallback.exposure
+        ancestry = try? container.decodeIfPresent(Ancestry.self, forKey: .ancestry)
+        dailyGoalIU = (try? container.decode(Double.self, forKey: .dailyGoalIU)) ?? fallback.dailyGoalIU
+        burnAlertFraction = (try? container.decode(Double.self, forKey: .burnAlertFraction))
+            ?? fallback.burnAlertFraction
+        notifyWindowOpening = (try? container.decode(Bool.self, forKey: .notifyWindowOpening))
+            ?? fallback.notifyWindowOpening
+        notifyDailyPlan = (try? container.decode(Bool.self, forKey: .notifyDailyPlan))
+            ?? fallback.notifyDailyPlan
+        dailyPlanMinuteOfDay = (try? container.decode(Int.self, forKey: .dailyPlanMinuteOfDay))
+            ?? fallback.dailyPlanMinuteOfDay
+
+        // Un profil enregistré par une version antérieure vient forcément de
+        // quelqu'un qui s'est déjà servi de l'application : lui imposer
+        // l'accueil serait absurde.
+        hasCompletedOnboarding = (try? container.decode(Bool.self, forKey: .hasCompletedOnboarding)) ?? true
+    }
+
+    init(skinType: SkinType,
+         age: Int,
+         tanLevel: TanLevel,
+         exposure: BodyExposure,
+         ancestry: Ancestry?,
+         dailyGoalIU: Double,
+         burnAlertFraction: Double,
+         notifyWindowOpening: Bool,
+         notifyDailyPlan: Bool,
+         dailyPlanMinuteOfDay: Int,
+         hasCompletedOnboarding: Bool) {
+        self.skinType = skinType
+        self.age = age
+        self.tanLevel = tanLevel
+        self.exposure = exposure
+        self.ancestry = ancestry
+        self.dailyGoalIU = dailyGoalIU
+        self.burnAlertFraction = burnAlertFraction
+        self.notifyWindowOpening = notifyWindowOpening
+        self.notifyDailyPlan = notifyDailyPlan
+        self.dailyPlanMinuteOfDay = dailyPlanMinuteOfDay
+        self.hasCompletedOnboarding = hasCompletedOnboarding
     }
 }

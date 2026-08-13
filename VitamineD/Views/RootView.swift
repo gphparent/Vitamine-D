@@ -6,6 +6,15 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var selection: Tab = Tab(launchArgument: LaunchOptions.initialTab)
 
+    /// L'accueil s'impose tant que le profil n'a pas été rempli, et se referme
+    /// de lui-même dès qu'il l'est.
+    private var onboarding: Binding<Bool> {
+        Binding(get: { !model.profile.hasCompletedOnboarding },
+                set: { showing in
+                    if !showing { model.profile.hasCompletedOnboarding = true }
+                })
+    }
+
     enum Tab: Hashable {
         case today, session, history, profile
 
@@ -53,6 +62,7 @@ struct RootView: View {
         .onChange(of: model.isSessionActive) { _, active in
             if active { selection = .session }
         }
+        .fullScreenCover(isPresented: onboarding) { OnboardingView() }
     }
 }
 

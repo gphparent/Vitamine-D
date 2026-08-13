@@ -19,7 +19,7 @@ struct ProfileView: View {
                     HStack {
                         Text("Phototype")
                         Spacer()
-                        Button("Comment choisir ?") { showsPhototypeHelp = true }
+                        Button("Refaire le questionnaire") { showsPhototypeHelp = true }
                             .font(.caption)
                             .textCase(nil)
                     }
@@ -136,7 +136,7 @@ struct ProfileView: View {
                 ClothingView(exposure: $model.profile.exposure)
             }
             .sheet(isPresented: $showsPhototypeHelp) {
-                PhototypeHelpView(selection: $model.profile.skinType)
+                OnboardingView()
             }
         }
     }
@@ -180,87 +180,6 @@ struct ProfileView: View {
                         .foregroundStyle(Theme.vitaminD)
                 }
             }
-        }
-    }
-}
-
-/// Aide au choix du phototype, par les questions d'origine de Fitzpatrick.
-struct PhototypeHelpView: View {
-
-    @Binding var selection: SkinType
-    @Environment(\.dismiss) private var dismiss
-    @State private var burns: Int = 1
-    @State private var tans: Int = 1
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    Text("Le phototype ne se lit pas sur la couleur de la peau, mais sur sa "
-                         + "réaction à une première exposition prolongée après l'hiver.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-
-                Section("Après 30 minutes de soleil de midi, sans protection") {
-                    Picker("Vous brûlez", selection: $burns) {
-                        Text("Toujours, douloureusement").tag(0)
-                        Text("Facilement").tag(1)
-                        Text("Modérément").tag(2)
-                        Text("Rarement").tag(3)
-                        Text("Jamais").tag(4)
-                    }
-                    .pickerStyle(.inline)
-                    .labelsHidden()
-                }
-
-                Section("Quelques jours plus tard") {
-                    Picker("Vous bronzez", selection: $tans) {
-                        Text("Pas du tout").tag(0)
-                        Text("Un peu").tag(1)
-                        Text("Progressivement").tag(2)
-                        Text("Bien et vite").tag(3)
-                        Text("Intensément").tag(4)
-                    }
-                    .pickerStyle(.inline)
-                    .labelsHidden()
-                }
-
-                Section {
-                    HStack {
-                        Text("Phototype suggéré")
-                        Spacer()
-                        Text(suggested.title)
-                            .foregroundStyle(Theme.vitaminD)
-                            .font(.body.weight(.medium))
-                    }
-                    Button("Appliquer") {
-                        selection = suggested
-                        dismiss()
-                    }
-                }
-            }
-            .navigationTitle("Choisir son phototype")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Annuler") { dismiss() }
-                }
-            }
-        }
-    }
-
-    /// La somme des deux réponses reproduit fidèlement l'échelle de Fitzpatrick :
-    /// brûler sans bronzer place en I, ne jamais brûler et bronzer fort place en VI.
-    private var suggested: SkinType {
-        let score = burns + tans
-        switch score {
-        case 0...1: return .i
-        case 2...3: return .ii
-        case 4...5: return .iii
-        case 6:     return .iv
-        case 7:     return .v
-        default:    return .vi
         }
     }
 }
