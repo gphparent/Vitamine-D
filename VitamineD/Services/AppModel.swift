@@ -59,21 +59,11 @@ final class AppModel {
         // Une position imposée sur la ligne de commande prime sur tout le
         // reste : c'est ce qui permet à l'intégration continue de produire des
         // captures d'écran sans dépendre du GPS du simulateur.
-        if let forced = LaunchOptions.forcedLocation {
-            self.location = forced
-            locationService.setManual(latitude: forced.latitude,
-                                      longitude: forced.longitude,
-                                      name: forced.name,
-                                      altitude: forced.altitude)
-        } else if let manual = store.load(ResolvedLocation.self, for: .manualLocation) {
-            self.location = manual
-            locationService.setManual(latitude: manual.latitude,
-                                      longitude: manual.longitude,
-                                      name: manual.name,
-                                      altitude: manual.altitude)
-        }
+        let resolved = LaunchOptions.forcedLocation
+            ?? store.load(ResolvedLocation.self, for: .manualLocation)
+        self.location = resolved
 
-        if LaunchOptions.wantsSolarNoon, let place = self.location {
+        if LaunchOptions.wantsSolarNoon, let place = resolved {
             let noon = SolarCalculator.solarNoon(
                 on: Date(), latitude: place.latitude, longitude: place.longitude,
                 calendar: Calendar(identifier: .gregorian))
@@ -81,7 +71,16 @@ final class AppModel {
         } else {
             self.clockOffset = 0
         }
-        self.now = currentDate
+        self.now = Date().addingTimeInterval(self.clockOffset)
+
+        // Toutes les propriétés stockées sont désormais remplies : c'est
+        // seulement à partir d'ici que Swift autorise à appeler une méthode.
+        if let resolved {
+            locationService.setManual(latitude: resolved.latitude,
+                                      longitude: resolved.longitude,
+                                      name: resolved.name,
+                                      altitude: resolved.altitude)
+        }
     }
 
     // MARK: - Environnement
