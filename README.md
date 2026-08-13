@@ -16,6 +16,12 @@ Elle croise quatre choses que les applications météo traitent séparément : l
 
 **Des alertes qui arrivent même téléphone rangé.** Les trois seuils d'une sortie — objectif atteint, seuil d'alerte cutanée, arrêt — sont projetés et déposés auprès du système dès le départ. Plus une alerte à l'ouverture de la fenêtre UVB, et un plan du matin. Changez de tenue ou appliquez de la crème en cours de route : les alertes sont recalculées.
 
+**La lumière du matin, séparément.** Le Soleil rasant ne produit aucun UVB utile, mais c'est le meilleur signal horaire pour l'horloge interne. L'application donne donc une seconde fenêtre, à l'opposé de la première, avec la durée conseillée selon l'éclairement réel — et un plan de déplacement progressif si vous voulez avancer votre heure de lever.
+
+**Un questionnaire au premier lancement.** Cinq questions dans l'esprit de Fitzpatrick, où la réaction au soleil pèse deux fois plus que l'apparence, et l'ascendance un quart. Quand les signaux divergent, l'application le dit et explique lequel l'emporte.
+
+**Un glossaire.** Onze termes appelables depuis chaque chiffre qui ne se suffit pas à lui-même, plus une page sur l'utilité de la vitamine D qui distingue la force de la preuve au lieu de tout affirmer sur le même ton.
+
 **Un historique.** Total du jour, des sept derniers jours, et deux semaines de barres avec la ligne d'objectif.
 
 ---
@@ -59,14 +65,17 @@ xcodebuild test -scheme VitamineD -destination 'platform=iOS Simulator,name=iPho
 
 ```
 VitamineD/
-├── Models/         SkinType · BodyExposure · UserProfile · ExposureSession
+├── Models/         SkinType · BodyExposure · Ancestry
+│                   UserProfile · ExposureSession
 ├── Engine/         SolarCalculator · UVEngine · DayPlanner
+│                   PhototypeEstimator · CircadianPlanner
 ├── Services/       AppModel · WeatherService · LocationService
-│                   NotificationService · Store
-└── Views/          Today · Session · History · Profile · Clothing · DayChart
+│                   NotificationService · Store · LaunchOptions
+└── Views/          Today · Session · History · Profile · Clothing
+                    DayChart · Onboarding · Circadian · Glossary
 ```
 
-`Engine/` ne dépend que de Foundation : aucun accès réseau, aucun état global, aucune interface. C'est là que vit toute la physique, et c'est ce qui la rend testable — 64 tests, répartis en quatre suites, couvrent la position solaire, les doses et le planificateur.
+`Engine/` ne dépend que de Foundation : aucun accès réseau, aucun état global, aucune interface. C'est là que vit toute la physique, et c'est ce qui la rend testable — 98 tests, répartis en six suites, couvrent la position solaire, les doses, le planificateur, l'estimation du phototype et le calage circadien.
 
 `AppModel` est le seul état partagé, exposé via `@Observable` et l'environnement SwiftUI.
 
@@ -109,6 +118,20 @@ UI/min = 55 · UVI · η(h) · surface exposée · facteur phototype · facteur 
 où `η(h)` est l'efficacité spectrale en fonction de la hauteur solaire. Le spectre d'action de la vitamine D culmine vers 297 nm, plus court que celui de l'érythème : l'absorption par l'ozone l'attaque donc plus vite quand le trajet atmosphérique s'allonge. C'est pourquoi la synthèse s'éteint alors que l'indice UV reste mesurable.
 
 La constante 55 est calée sur le repère clinique classique : phototype III, un quart du corps découvert, indice UV 7, Soleil haut → environ 1 000 UI en douze minutes. Les valeurs qui en découlent sont cohérentes avec la littérature : 8 minutes au midi de juin à Montréal en t-shirt et short, trois à cinq fois plus pour un phototype VI, et une impossibilité pratique de novembre à février.
+
+### Rendement et bandes du graphique
+
+Dans le rapport *vitamine D gagnée / capital cutané dépensé*, l'indice UV se simplifie : il figure au numérateur comme au dénominateur. Le rendement ne dépend donc que de la **hauteur du Soleil**, et croît avec elle jusqu'à saturer vers 65°.
+
+Il n'existe par conséquent aucun créneau discret où l'on gagnerait davantage pour moins de risque : le meilleur rapport est toujours le Soleil le plus haut — à condition d'y rester peu. À 20° de hauteur, il faut dépenser huit fois plus de capital cutané pour la même vitamine D qu'à 65°. C'est ce critère, et lui seul, qui colore les bandes de fond du graphique.
+
+### Lumière et horloge interne
+
+Un chemin biologique entièrement distinct. L'éclairement extérieur est estimé à partir de la hauteur solaire et des nuages, l'efficacité lumineuse du jour avoisinant 110 lumens par watt — d'où l'ordre de grandeur familier des 100 000 lux Soleil au zénith.
+
+Les nuages coupent le visible bien plus fort que l'ultraviolet : environ 15 % de transmission sous un ciel bouché, contre 25 % pour les UV. Sans importance ici, puisque même ce ciel-là dépasse dix fois une pièce bien éclairée.
+
+Le déplacement de l'heure de lever est borné à trente minutes par jour, et prend le chemin le plus court sur le cadran. Les durées d'exposition conseillées viennent de la vulgarisation, non d'un protocole clinique — l'application le dit à l'écran.
 
 ### Le plafond
 

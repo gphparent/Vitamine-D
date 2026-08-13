@@ -230,31 +230,41 @@ struct GlossaryButton: View {
     }
 }
 
+/// Le texte seul, sans habillage de navigation, pour pouvoir être aussi bien
+/// présenté en feuille que poussé depuis une liste.
+struct GlossaryDetail: View {
+    let entry: GlossaryEntry
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text(entry.summary)
+                    .font(.headline)
+                    .foregroundStyle(Theme.vitaminD)
+                Text(entry.explanation)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+        }
+        .navigationTitle(entry.term)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
 struct GlossarySheet: View {
     let entry: GlossaryEntry
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text(entry.summary)
-                        .font(.headline)
-                        .foregroundStyle(Theme.vitaminD)
-                    Text(entry.explanation)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+            GlossaryDetail(entry: entry)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Fermer") { dismiss() }
+                    }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(20)
-            }
-            .navigationTitle(entry.term)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Fermer") { dismiss() }
-                }
-            }
         }
     }
 }
@@ -264,7 +274,7 @@ struct GlossaryListView: View {
     var body: some View {
         List(GlossaryEntry.allCases) { entry in
             NavigationLink {
-                GlossarySheet(entry: entry)
+                GlossaryDetail(entry: entry)
             } label: {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(entry.term).font(.subheadline.weight(.medium))

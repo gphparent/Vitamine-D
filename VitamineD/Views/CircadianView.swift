@@ -137,13 +137,15 @@ struct CircadianView: View {
             l'effet de la lumière. Aller plus vite ne fait que creuser un écart \
             entre l'heure du réveil et celle du corps — précisément ce qu'on \
             cherche à supprimer.
-
-            \(earlier
-              ? "Pour avancer : lumière dès le lever, pénombre le soir."
-              : "Pour retarder : lumière le soir, et évitez-la trop tôt le matin.")
             """)
             .font(.caption)
             .foregroundStyle(.tertiary)
+
+            Text(earlier
+                 ? "Pour avancer : lumière dès le lever, pénombre le soir."
+                 : "Pour retarder : lumière le soir, et évitez-la trop tôt le matin.")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -160,12 +162,14 @@ struct CircadianView: View {
             La lumière du soir agit à l'inverse de celle du matin : elle retarde \
             l'horloge. Deux à trois heures de pénombre avant le coucher visé lui \
             laissent le temps de libérer la mélatonine.
-
-            Coucher visé : \(Format.minuteOfDay(bedtimeMinute)), pour \
-            \(String(format: "%.1f", model.profile.sleepHours)) heures de sommeil.
             """)
             .font(.footnote)
             .foregroundStyle(.secondary)
+
+            Text("Coucher visé : \(Format.minuteOfDay(bedtimeMinute)), pour "
+                 + String(format: "%.1f", model.profile.sleepHours) + " heures de sommeil.")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
         }
     }
 

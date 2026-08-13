@@ -17,7 +17,7 @@ struct DayChart: View {
     /// aurait franchi la dose érythémale minimale.
     let burnHorizon: Date?
 
-    @State private var selected: Date?
+    @State private var selected: Date? = nil
 
     init(plan: DayPlan, now: Date) {
         self.plan = plan
@@ -53,14 +53,16 @@ struct DayChart: View {
                 // Fond : ce que vaut chaque heure. Le rendement ne dépendant que
                 // de la hauteur du Soleil, ces bandes sont les mêmes quel que
                 // soit le temps qu'il fait.
-                ForEach(Array(bands.enumerated()), id: \.offset) { _, entry in
+                ForEach(Array(bands.enumerated()), id: \.offset) { item in
                     RectangleMark(
-                        xStart: .value("Début", entry.interval.start),
-                        xEnd: .value("Fin", entry.interval.end),
+                        xStart: .value("Début", item.element.interval.start),
+                        xEnd: .value("Fin", item.element.interval.end),
                         yStart: .value("Bas", 0.0),
                         yEnd: .value("Haut", maxUV)
                     )
-                    .foregroundStyle(Theme.yieldColour(entry.band).opacity(entry.band == .negligible ? 0.07 : 0.16))
+                    .foregroundStyle(
+                        Theme.yieldColour(item.element.band)
+                            .opacity(item.element.band == .negligible ? 0.07 : 0.16))
                 }
 
                 // Zone de risque : après cet instant, être resté dehors sans
