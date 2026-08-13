@@ -56,7 +56,7 @@ final class AppModel {
     private var currentDate: Date { Date().addingTimeInterval(clockOffset) }
 
     init(store: Store = Store(),
-         weatherService: any WeatherProviding = OpenMeteoService()) {
+         weatherService: any WeatherProviding = AppleWeatherService()) {
         self.store = store
         self.weatherService = weatherService
         self.profile = store.load(UserProfile.self, for: .profile) ?? .default

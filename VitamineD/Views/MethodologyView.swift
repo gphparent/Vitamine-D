@@ -3,9 +3,30 @@ import SwiftUI
 /// Ce que l'application calcule, comment, et où sont ses limites.
 struct MethodologyView: View {
 
+    /// Attribution exigée par la licence de WeatherKit.
+    ///
+    /// Apple impose d'afficher la marque « Weather » et un lien vers la page
+    /// légale partout où ses données apparaissent. Ce n'est pas facultatif :
+    /// une application qui l'omet est refusée en revue.
+    private var attribution: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label("Météo par  Weather", systemImage: "cloud.sun")
+                .font(.subheadline.weight(.medium))
+            Link("Sources et mentions légales",
+                 destination: URL(string: "https://weatherkit.apple.com/legal-attribution.html")!)
+                .font(.footnote)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Theme.cardBackground,
+                    in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
+                attribution
+
                 section(
                     title: "Position du Soleil",
                     body: """
@@ -18,12 +39,21 @@ struct MethodologyView: View {
                 section(
                     title: "Indice UV",
                     body: """
-                    Prévisions Open-Meteo, qui redistribuent les modèles CAMS de qualité de \
-                    l'air. En l'absence de réseau, l'application retombe sur la \
-                    paramétrisation de Fioletov : UVI ≈ 12,5 · μ^2,42 · (Ω/300)^−1,23, où μ \
-                    est le cosinus de l'angle zénithal et Ω la colonne d'ozone. L'altitude \
-                    ajoute environ 6 % par kilomètre, la neige au sol jusqu'à 30 % par \
-                    réflexion.
+                    Prévisions d'Apple Weather, complétées par Open-Meteo lorsque les \
+                    premières sont indisponibles. En l'absence de tout réseau, \
+                    l'application retombe sur la paramétrisation de Fioletov : \
+                    UVI ≈ 12,5 · μ^2,42 · (Ω/300)^−1,23, où μ est le cosinus de l'angle \
+                    zénithal et Ω la colonne d'ozone. L'altitude ajoute environ 6 % par \
+                    kilomètre, la neige au sol jusqu'à 30 % par réflexion.
+
+                    Apple Weather ne publie l'indice UV qu'en nombre entier. Le prendre \
+                    tel quel donnerait une courbe en escalier et fausserait le temps \
+                    avant rougeur, qui s'obtient en cumulant le débit minute par minute — \
+                    un palier à 3 là où la valeur vaut 3,4 se paie en plus de dix pour \
+                    cent d'erreur. L'application reconstitue donc une courbe continue à \
+                    partir de la couverture nuageuse, en la contraignant à ne jamais \
+                    s'écarter de plus d'une demi-unité de la valeur publiée — soit \
+                    exactement l'incertitude de l'arrondi.
                     """)
 
                 section(

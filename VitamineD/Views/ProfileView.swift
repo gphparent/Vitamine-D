@@ -4,7 +4,10 @@ struct ProfileView: View {
 
     @Environment(AppModel.self) private var model
     @State private var showsClothing = false
-    @State private var showsPhototypeHelp = false
+    /// Les deux entrées — « revoir la présentation » et « refaire le
+    /// questionnaire » — ouvrent le même écran, qui commence par les pages
+    /// d'explication et finit par le phototype.
+    @State private var showsOnboarding = false
 
     var body: some View {
         @Bindable var model = model
@@ -19,7 +22,7 @@ struct ProfileView: View {
                     HStack {
                         Text("Phototype")
                         Spacer()
-                        Button("Refaire le questionnaire") { showsPhototypeHelp = true }
+                        Button("Refaire le questionnaire") { showsOnboarding = true }
                             .font(.caption)
                             .textCase(nil)
                     }
@@ -128,6 +131,7 @@ struct ProfileView: View {
                 }
 
                 Section("Comprendre") {
+                    Button("Revoir la présentation") { showsOnboarding = true }
                     NavigationLink("À quoi sert la vitamine D") { VitaminDPrimerView() }
                     NavigationLink("Glossaire") { GlossaryListView() }
                 }
@@ -144,8 +148,8 @@ struct ProfileView: View {
             .sheet(isPresented: $showsClothing) {
                 ClothingView(exposure: $model.profile.exposure)
             }
-            .sheet(isPresented: $showsPhototypeHelp) {
-                OnboardingView()
+            .sheet(isPresented: $showsOnboarding) {
+                OnboardingView(isReview: true)
             }
         }
     }

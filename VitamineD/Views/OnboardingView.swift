@@ -9,6 +9,16 @@ import SwiftUI
 /// pense pas à ouvrir les réglages.
 struct OnboardingView: View {
 
+    /// Vrai lorsque l'écran est rouvert depuis le profil, et non au premier
+    /// lancement.
+    ///
+    /// La différence n'est pas cosmétique. Rouvert, l'écran part des réponses
+    /// déjà enregistrées : sans cela, feuilleter les pages d'explication puis
+    /// appuyer sur « Terminer » écraserait le phototype par la valeur que le
+    /// questionnaire propose à vide. Personne ne s'attend à perdre un réglage
+    /// en relisant une explication.
+    var isReview = false
+
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
 
@@ -16,6 +26,7 @@ struct OnboardingView: View {
     @State private var questionnaire = PhototypeQuestionnaire()
     @State private var chosenType: SkinType?
     @State private var age = 35
+    @State private var hasSeeded = false
 
     /// Trois pages d'explication, l'âge, l'ascendance, les cinq questions,
     /// puis le résultat.
@@ -45,6 +56,12 @@ struct OnboardingView: View {
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                if isReview {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Fermer") { dismiss() }
+                            .font(.subheadline)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     if step > 0 && step < stepCount - 1 {
                         Button("Passer") { step = stepCount - 1 }
@@ -52,7 +69,14 @@ struct OnboardingView: View {
                     }
                 }
             }
-            .interactiveDismissDisabled()
+            .interactiveDismissDisabled(!isReview)
+            .task {
+                guard isReview, !hasSeeded else { return }
+                hasSeeded = true
+                age = model.profile.age
+                chosenType = model.profile.skinType
+                questionnaire.ancestry = model.profile.ancestry
+            }
         }
     }
 
@@ -301,7 +325,7 @@ struct OnboardingView: View {
                 Button("Précédent") { step -= 1 }
                     .buttonStyle(.bordered)
             }
-            Button(step == stepCount - 1 ? "Commencer" : "Suivant") {
+            Button(step == stepCount - 1 ? (isReview ? "Terminer" : "Commencer") : "Suivant") {
                 if step == stepCount - 1 { finish() } else { step += 1 }
             }
             .buttonStyle(.borderedProminent)

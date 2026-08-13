@@ -15,6 +15,7 @@
 		3001AA0000000000000001 /* VitamineDTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VitamineDTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3002AA0000000000000001 /* VitamineDWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = VitamineDWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		3003AA0000000000000001 /* VitamineDWidgets-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "VitamineDWidgets-Info.plist"; sourceTree = "<group>"; };
+		3004AA0000000000000001 /* VitamineD.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = VitamineD.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -69,6 +70,7 @@
 				2100AA0000000000000001 /* VitamineD */,
 				2103AA0000000000000001 /* VitamineDShared */,
 				2102AA0000000000000001 /* VitamineDWidgets */,
+				3004AA0000000000000001 /* VitamineD.entitlements */,
 				3003AA0000000000000001 /* VitamineDWidgets-Info.plist */,
 				2101AA0000000000000001 /* VitamineDTests */,
 				2001AA0000000000000001 /* Products */,
@@ -342,6 +344,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = VitamineD.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
@@ -375,6 +378,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = VitamineD.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
