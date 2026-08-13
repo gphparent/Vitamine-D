@@ -41,6 +41,17 @@ enum Theme {
         }
     }
 
+    /// Couleur d'une bande de rendement. Le vert n'est pas décoratif : il dit
+    /// que la règle de l'ombre est satisfaite, donc que chaque minute passée
+    /// dehors rapporte le maximum pour ce qu'elle coûte à la peau.
+    static func yieldColour(_ band: DayPlanner.YieldBand) -> Color {
+        switch band {
+        case .negligible: return Color(red: 0.55, green: 0.57, blue: 0.60)
+        case .partial:    return Color(red: 0.95, green: 0.72, blue: 0.20)
+        case .optimal:    return Color(red: 0.30, green: 0.66, blue: 0.42)
+        }
+    }
+
     static let vitaminD = Color(red: 0.98, green: 0.68, blue: 0.13)
 
     static let cardBackground = Color(uiColor: .secondarySystemGroupedBackground)

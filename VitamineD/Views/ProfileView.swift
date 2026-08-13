@@ -50,6 +50,10 @@ struct ProfileView: View {
                                    value: Format.percent(model.profile.ageFactor))
                     LabeledContent("Seuil d'érythème",
                                    value: String(format: "%.0f J/m²", model.profile.effectiveMED))
+                    NavigationLink("Que veulent dire ces chiffres ?") {
+                        GlossaryListView()
+                    }
+                    .font(.footnote)
                 }
 
                 Section {
@@ -121,6 +125,11 @@ struct ProfileView: View {
                             Task { await model.notifications.requestAuthorisation() }
                         }
                     }
+                }
+
+                Section("Comprendre") {
+                    NavigationLink("À quoi sert la vitamine D") { VitaminDPrimerView() }
+                    NavigationLink("Glossaire") { GlossaryListView() }
                 }
 
                 Section {

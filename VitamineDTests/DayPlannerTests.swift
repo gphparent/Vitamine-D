@@ -254,6 +254,60 @@ struct DayPlannerTests {
         }
     }
 
+    // MARK: - Bandes de rendement
+
+    @Test("Les bandes de rendement suivent la hauteur du Soleil")
+    func yieldBandsFollowElevation() {
+        #expect(DayPlanner.YieldBand(solarElevation: 10) == .negligible)
+        #expect(DayPlanner.YieldBand(solarElevation: 24.9) == .negligible)
+        #expect(DayPlanner.YieldBand(solarElevation: 25) == .partial)
+        #expect(DayPlanner.YieldBand(solarElevation: 44.9) == .partial)
+        #expect(DayPlanner.YieldBand(solarElevation: 45) == .optimal)
+        #expect(DayPlanner.YieldBand(solarElevation: 80) == .optimal)
+        #expect(DayPlanner.YieldBand(solarElevation: 10) < .optimal)
+    }
+
+    @Test("Une journée d'été traverse les trois bandes, symétriquement")
+    func summerCrossesEveryBand() throws {
+        let summer = plan(on: day(2026, 6, 21))
+        let bands = DayPlanner.yieldBands(from: summer.samples)
+
+        let kinds = bands.map(\.band)
+        #expect(kinds.contains(.negligible))
+        #expect(kinds.contains(.partial))
+        #expect(kinds.contains(.optimal))
+
+        // Le Soleil monte puis redescend : la séquence doit être un aller-retour.
+        #expect(kinds == [.negligible, .partial, .optimal, .partial, .negligible])
+
+        // Les plages se suivent sans trou ni chevauchement.
+        for (previous, next) in zip(bands, bands.dropFirst()) {
+            #expect(abs(previous.interval.end.timeIntervalSince(next.interval.start)) < 1)
+        }
+    }
+
+    @Test("Décembre à Montréal ne quitte jamais la bande dérisoire")
+    func winterStaysNegligible() {
+        let winter = plan(on: day(2026, 12, 21))
+        let bands = DayPlanner.yieldBands(from: winter.samples)
+        #expect(!bands.isEmpty)
+        #expect(bands.allSatisfy { $0.band == .negligible })
+    }
+
+    @Test("La nuit polaire ne produit aucune bande")
+    func polarNightHasNoBands() {
+        let polar = plan(on: day(2026, 12, 21), latitude: 69.65, longitude: 18.96)
+        #expect(DayPlanner.yieldBands(from: polar.samples).isEmpty)
+    }
+
+    @Test("La bande optimale encadre le midi solaire")
+    func optimalBandSurroundsSolarNoon() throws {
+        let summer = plan(on: day(2026, 6, 21))
+        let optimal = try #require(
+            DayPlanner.yieldBands(from: summer.samples).first { $0.band == .optimal })
+        #expect(optimal.interval.contains(summer.solarNoon))
+    }
+
     // MARK: - Temps avant rougeur
 
     @Test("Le temps avant rougeur tient compte de la montée du Soleil")

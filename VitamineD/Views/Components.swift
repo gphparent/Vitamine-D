@@ -33,12 +33,17 @@ struct MetricTile: View {
     let value: String
     var detail: String?
     var tint: Color = .primary
+    /// Terme à expliquer, si l'intitulé ne se suffit pas à lui-même.
+    var glossary: GlossaryEntry?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            HStack(spacing: 3) {
+                Text(label)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let glossary { GlossaryButton(entry: glossary) }
+            }
             Text(value)
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(tint)
@@ -112,14 +117,17 @@ struct DualProgressBar: View {
             bar(label: "Capital cutané",
                 value: medFraction,
                 tint: Theme.burnColour(burnLevel),
-                trailing: Format.percent(min(1, medFraction)) + " de la DEM")
+                trailing: Format.percent(min(1, medFraction)) + " de la DEM",
+                glossary: .skinCapital)
         }
     }
 
-    private func bar(label: String, value: Double, tint: Color, trailing: String) -> some View {
+    private func bar(label: String, value: Double, tint: Color, trailing: String,
+                     glossary: GlossaryEntry? = nil) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack {
+            HStack(spacing: 3) {
                 Text(label).font(.caption).foregroundStyle(.secondary)
+                if let glossary { GlossaryButton(entry: glossary) }
                 Spacer()
                 Text(trailing).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             }
@@ -204,7 +212,8 @@ struct RecommendationCard: View {
                            tint: Theme.vitaminD)
                 MetricTile(label: "Capital cutané",
                            value: Format.percent(recommendation.medFraction),
-                           detail: "de la DEM")
+                           detail: "de la DEM",
+                           glossary: .skinCapital)
                 MetricTile(label: "UV moyen",
                            value: String(format: "%.1f", recommendation.averageUVIndex),
                            tint: Theme.uvColour(recommendation.averageUVIndex))

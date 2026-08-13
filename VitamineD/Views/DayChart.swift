@@ -2,17 +2,29 @@ import Charts
 import SwiftUI
 
 /// Courbe de la journée : indice UV en aire colorée, hauteur du Soleil en trait,
-/// fenêtres de synthèse en bandes, instant courant en repère.
+/// et surtout des bandes de fond qui disent d'un coup d'œil ce que vaut chaque
+/// heure.
 ///
-/// Superposer les deux grandeurs est le point de la vue : elles ne culminent pas
-/// tout à fait ensemble par temps variable, et c'est justement l'écart qui
-/// explique pourquoi un après-midi lumineux peut ne rien valoir pour la
+/// Superposer indice UV et hauteur solaire est le point de la vue : les deux ne
+/// culminent pas tout à fait ensemble par temps variable, et c'est justement
+/// l'écart qui explique qu'un après-midi lumineux puisse ne rien valoir pour la
 /// vitamine D.
 struct DayChart: View {
 
     let plan: DayPlan
     let now: Date
+    /// Instant au-delà duquel une exposition ininterrompue commencée maintenant
+    /// aurait franchi la dose érythémale minimale.
+    let burnHorizon: Date?
+
     @State private var selected: Date?
+
+    init(plan: DayPlan, now: Date) {
+        self.plan = plan
+        self.now = now
+        self.burnHorizon = DayPlanner.timeToErythema(from: now, samples: plan.samples)
+            .map { now.addingTimeInterval($0) }
+    }
 
     private var visibleSamples: [TimelineSample] {
         plan.samples.filter { $0.solarElevation > -4 }
@@ -25,21 +37,51 @@ struct DayChart: View {
         }
     }
 
+    private var bands: [(interval: DateInterval, band: DayPlanner.YieldBand)] {
+        DayPlanner.yieldBands(from: plan.samples)
+    }
+
     private var maxUV: Double { max(2, (plan.peakUVIndex * 1.25).rounded(.up)) }
+
+    private var dayEnd: Date? { plan.samples.last?.date }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             header
 
             Chart {
-                ForEach(plan.windows) { window in
+                // Fond : ce que vaut chaque heure. Le rendement ne dépendant que
+                // de la hauteur du Soleil, ces bandes sont les mêmes quel que
+                // soit le temps qu'il fait.
+                ForEach(Array(bands.enumerated()), id: \.offset) { _, entry in
                     RectangleMark(
-                        xStart: .value("Début", window.interval.start),
-                        xEnd: .value("Fin", window.interval.end),
+                        xStart: .value("Début", entry.interval.start),
+                        xEnd: .value("Fin", entry.interval.end),
                         yStart: .value("Bas", 0.0),
                         yEnd: .value("Haut", maxUV)
                     )
-                    .foregroundStyle(Theme.windowColour(window.quality).opacity(0.12))
+                    .foregroundStyle(Theme.yieldColour(entry.band).opacity(entry.band == .negligible ? 0.07 : 0.16))
+                }
+
+                // Zone de risque : après cet instant, être resté dehors sans
+                // interruption depuis maintenant suffit à brûler.
+                if let burnHorizon, let dayEnd, burnHorizon < dayEnd {
+                    RectangleMark(
+                        xStart: .value("Début", burnHorizon),
+                        xEnd: .value("Fin", dayEnd),
+                        yStart: .value("Bas", 0.0),
+                        yEnd: .value("Haut", maxUV)
+                    )
+                    .foregroundStyle(.red.opacity(0.10))
+
+                    RuleMark(x: .value("Seuil de brûlure", burnHorizon))
+                        .foregroundStyle(.red.opacity(0.65))
+                        .lineStyle(.init(lineWidth: 1.5, dash: [5, 3]))
+                        .annotation(position: .top, alignment: .leading, spacing: 2) {
+                            Text("brûlure")
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(.red)
+                        }
                 }
 
                 ForEach(visibleSamples) { sample in
@@ -65,11 +107,6 @@ struct DayChart: View {
                     .lineStyle(.init(lineWidth: 1.5, dash: [4, 3]))
                     .interpolationMethod(.catmullRom)
                 }
-
-                // Seuil de la règle de l'ombre.
-                RuleMark(y: .value("Seuil", UVEngine.optimalSynthesisElevation / 90 * maxUV))
-                    .foregroundStyle(.tertiary)
-                    .lineStyle(.init(lineWidth: 0.5, dash: [2, 4]))
 
                 RuleMark(x: .value("Maintenant", now))
                     .foregroundStyle(Theme.vitaminD)
@@ -107,11 +144,14 @@ struct DayChart: View {
                     }
                 }
             }
-            .frame(height: 190)
+            .frame(height: 200)
 
             legend
+            footnote
         }
     }
+
+    // MARK: - En-tête
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
@@ -122,11 +162,10 @@ struct DayChart: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text(sample.rates.vitaminDIUPerMinute > 0.5
-                     ? "\(Int(sample.rates.vitaminDIUPerMinute)) UI/min"
-                     : "aucune synthèse")
+                Text(DayPlanner.YieldBand(solarElevation: sample.solarElevation).shortTitle)
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(sample.rates.vitaminDIUPerMinute > 0.5 ? Theme.vitaminD : .secondary)
+                    .foregroundStyle(Theme.yieldColour(
+                        DayPlanner.YieldBand(solarElevation: sample.solarElevation)))
             } else {
                 Text("Courbe du jour")
                     .font(.subheadline.weight(.semibold))
@@ -138,11 +177,22 @@ struct DayChart: View {
         }
     }
 
+    // MARK: - Légende
+
     private var legend: some View {
-        HStack(spacing: 14) {
-            legendItem(colour: Theme.uvColour(plan.peakUVIndex), label: "Indice UV", filled: true)
-            legendItem(colour: .secondary, label: "Hauteur du Soleil", filled: false)
-            legendItem(colour: Theme.windowColour(.optimal), label: "Fenêtre utile", filled: true)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 14) {
+                legendItem(colour: Theme.uvColour(plan.peakUVIndex), label: "Indice UV", filled: true)
+                legendItem(colour: .secondary, label: "Hauteur du Soleil", filled: false)
+                if burnHorizon != nil {
+                    legendItem(colour: .red, label: "Zone de brûlure", filled: true)
+                }
+            }
+            HStack(spacing: 14) {
+                ForEach([DayPlanner.YieldBand.negligible, .partial, .optimal], id: \.self) { band in
+                    legendItem(colour: Theme.yieldColour(band), label: band.shortTitle, filled: true)
+                }
+            }
         }
         .font(.caption2)
         .foregroundStyle(.secondary)
@@ -151,7 +201,7 @@ struct DayChart: View {
     private func legendItem(colour: Color, label: String, filled: Bool) -> some View {
         HStack(spacing: 4) {
             RoundedRectangle(cornerRadius: 2)
-                .fill(filled ? colour.opacity(0.6) : .clear)
+                .fill(filled ? colour.opacity(0.5) : .clear)
                 .overlay(
                     RoundedRectangle(cornerRadius: 2)
                         .stroke(colour, style: .init(lineWidth: 1, dash: filled ? [] : [2, 2]))
@@ -159,5 +209,20 @@ struct DayChart: View {
                 .frame(width: 14, height: 8)
             Text(label)
         }
+    }
+
+    private var footnote: some View {
+        Text(burnHorizon == nil
+             ? "Les bandes de fond donnent le rendement — vitamine D gagnée par unité "
+               + "de capital cutané —, qui ne dépend que de la hauteur du Soleil. "
+               + "Aujourd'hui, rester dehors sans interruption à partir de maintenant "
+               + "ne suffirait pas à brûler avant le coucher."
+             : "Les bandes de fond donnent le rendement — vitamine D gagnée par unité "
+               + "de capital cutané —, qui ne dépend que de la hauteur du Soleil. "
+               + "La zone rouge marque l'instant où, resté dehors sans interruption "
+               + "depuis maintenant, vous auriez atteint le seuil de rougeur.")
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }

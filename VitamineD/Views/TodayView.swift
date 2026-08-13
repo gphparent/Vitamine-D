@@ -157,10 +157,12 @@ struct TodayView: View {
                            tint: Theme.vitaminD)
                 MetricTile(label: "Coup de soleil",
                            value: burnText,
-                           detail: burnDetail)
+                           detail: burnDetail,
+                           glossary: .minimalErythemalDose)
                 MetricTile(label: "Aujourd'hui",
                            value: Format.iu(model.todayTotalIU),
-                           detail: "objectif \(Int(model.profile.dailyGoalIU)) UI")
+                           detail: "objectif \(Int(model.profile.dailyGoalIU)) UI",
+                           glossary: .internationalUnits)
             }
         }
     }

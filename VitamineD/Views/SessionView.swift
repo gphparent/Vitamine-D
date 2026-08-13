@@ -166,7 +166,8 @@ struct SessionView: View {
                                    value: "\(Int(model.progress.currentRates.vitaminDIUPerMinute)) UI/min")
                         MetricTile(label: "Rendement",
                                    value: Format.percent(model.progress.marginalYield),
-                                   detail: "restant")
+                                   detail: "restant",
+                                   glossary: .marginalYield)
                     }
                 }
             }

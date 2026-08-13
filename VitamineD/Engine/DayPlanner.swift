@@ -335,6 +335,85 @@ enum DayPlanner {
 
     // MARK: - Recommandations
 
+    // MARK: - Bandes de rendement
+
+    /// Qualité du rendement — vitamine D obtenue par unité de capital cutané
+    /// dépensé — sur une plage horaire.
+    ///
+    /// Dans ce rapport, l'indice UV se simplifie : il figure au numérateur de la
+    /// synthèse comme au dénominateur de la dose érythémale. Le rendement ne
+    /// dépend donc que de la **hauteur du Soleil**, et il croît avec elle
+    /// jusqu'à saturer vers 65°.
+    ///
+    /// Conséquence contre-intuitive : il n'existe aucun créneau discret où l'on
+    /// gagnerait davantage pour moins de risque. Le meilleur rapport est
+    /// toujours le Soleil le plus haut — à condition d'y rester peu. À 20° de
+    /// hauteur, il faut dépenser huit fois plus de capital cutané pour la même
+    /// vitamine D qu'à 65°.
+    enum YieldBand: Int, Comparable, Sendable {
+        case negligible   // sous 25° : ce qu'on récolte ne vaut pas la dépense
+        case partial      // 25 à 45° : utile, mais le rapport reste médiocre
+        case optimal      // au-delà de 45° : règle de l'ombre satisfaite
+
+        static func < (lhs: YieldBand, rhs: YieldBand) -> Bool { lhs.rawValue < rhs.rawValue }
+
+        init(solarElevation: Double) {
+            switch solarElevation {
+            case UVEngine.optimalSynthesisElevation...: self = .optimal
+            case UVEngine.vitaminDWinterElevation...:   self = .partial
+            default:                                    self = .negligible
+            }
+        }
+
+        var title: String {
+            switch self {
+            case .negligible: return "Rendement dérisoire"
+            case .partial:    return "Rendement partiel"
+            case .optimal:    return "Rendement optimal"
+            }
+        }
+
+        var shortTitle: String {
+            switch self {
+            case .negligible: return "Dérisoire"
+            case .partial:    return "Partiel"
+            case .optimal:    return "Optimal"
+            }
+        }
+    }
+
+    /// Découpe la journée en plages de rendement homogène.
+    ///
+    /// Seules les plages où le Soleil est levé sont renvoyées : colorer la nuit
+    /// n'apprendrait rien.
+    static func yieldBands(from samples: [TimelineSample]) -> [(interval: DateInterval, band: YieldBand)] {
+        var result: [(DateInterval, YieldBand)] = []
+        var runStart: Date?
+        var runBand: YieldBand?
+
+        func close(at end: Date) {
+            if let start = runStart, let band = runBand, end > start {
+                result.append((DateInterval(start: start, end: end), band))
+            }
+            runStart = nil; runBand = nil
+        }
+
+        for sample in samples {
+            guard sample.solarElevation > 0 else {
+                close(at: sample.date)
+                continue
+            }
+            let band = YieldBand(solarElevation: sample.solarElevation)
+            if band != runBand {
+                close(at: sample.date)
+                runStart = sample.date
+                runBand = band
+            }
+        }
+        if let last = samples.last { close(at: last.date) }
+        return result.map { (interval: $0.0, band: $0.1) }
+    }
+
     /// Durée d'exposition continue, à partir de `date`, avant d'atteindre la
     /// fraction indiquée de la dose érythémale minimale. `nil` si le Soleil se
     /// couche avant.
