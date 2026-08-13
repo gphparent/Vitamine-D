@@ -13,10 +13,6 @@ struct TodayView: View {
                     if model.location == nil {
                         locationPrompt
                     } else {
-                        locationRow
-                        if let plan = model.plan {
-                            OptimalWindowCountdown(plan: plan, now: model.now)
-                        }
                         notices
                         statusCard
                         clothingCard
@@ -33,6 +29,20 @@ struct TodayView: View {
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle("Vitamine D")
             .toolbar {
+                // Le lieu reste une pastille flottante dans la barre, et mène
+                // à l'année entière : c'est là que se voit l'hiver vitaminique,
+                // qu'aucune vue quotidienne ne peut montrer.
+                ToolbarItem(placement: .topBarLeading) {
+                    NavigationLink {
+                        YearView()
+                    } label: {
+                        Label(model.location?.name ?? "Lieu",
+                              systemImage: model.location?.isManual == true ? "mappin" : "location.fill")
+                            .labelStyle(.titleAndIcon)
+                            .font(.subheadline.weight(.medium))
+                            .lineLimit(1)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         Task { await model.refresh() }
@@ -53,57 +63,6 @@ struct TodayView: View {
     }
 
     // MARK: - Sections
-
-    /// Le lieu, en toutes lettres, et la porte d'entrée vers l'année.
-    ///
-    /// La latitude n'est pas un détail de réglage : elle décide à elle seule
-    /// s'il existe une saison où rien ne se produit. L'afficher en tête, et
-    /// mener d'un geste à la courbe annuelle, met cette dépendance sous les
-    /// yeux plutôt que dans un sous-menu.
-    private var locationRow: some View {
-        NavigationLink {
-            YearView()
-        } label: {
-            Card {
-                HStack(spacing: 12) {
-                    Image(systemName: model.location?.isManual == true ? "mappin" : "location.fill")
-                        .font(.subheadline)
-                        .foregroundStyle(Theme.vitaminD)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(model.location?.name ?? "Position")
-                            .font(.headline)
-                            .foregroundStyle(.primary)
-                        Text(latitudeLine)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer(minLength: 8)
-
-                    Text("L'année")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                    Image(systemName: "chevron.right")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
-            }
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var latitudeLine: String {
-        guard let location = model.location else { return "Position inconnue" }
-        let latitude = String(format: "%.1f°", abs(location.latitude))
-        let hemisphere = location.latitude >= 0 ? "N" : "S"
-        guard let outlook = model.yearOutlook, outlook.hasWinter,
-              let winter = outlook.winter else {
-            return "\(latitude) \(hemisphere) · pas d'hiver vitaminique"
-        }
-        return "\(latitude) \(hemisphere) · hiver vitaminique du "
-            + Format.shortDate(winter.start, in: outlook.timeZone)
-    }
 
     private var locationPrompt: some View {
         Card {
@@ -166,6 +125,13 @@ struct TodayView: View {
 
     private var statusCard: some View {
         Card {
+            // Le décompte d'abord : c'est lui qui décide d'une sortie. La jauge
+            // et les tuiles qui suivent disent l'instant présent.
+            if let plan = model.plan {
+                OptimalWindowCountdown(plan: plan, now: model.now)
+                Divider()
+            }
+
             HStack(alignment: .top, spacing: 18) {
                 UVGauge(uvIndex: model.currentConditions?.uvIndex ?? 0,
                         clearSkyIndex: model.currentConditions?.uvIndexClearSky ?? 0)
@@ -281,16 +247,21 @@ struct TodayView: View {
             // sinon la dose déjà accumulée serait recalculée à tort.
             model.updateSessionExposure(exposure)
         } label: {
-            VStack(spacing: 4) {
+            VStack(spacing: 5) {
                 Image(systemName: preset.symbolName)
                     .font(.body)
-                Text(preset.title)
+                    .frame(height: 20)
+                // Deux lignes toujours, quitte à ce que la seconde soit vide :
+                // sans cela « Manteau » ferait une boîte plus courte que
+                // « Manches longues », et la rangée serait bancale.
+                Text(preset.shortTitle)
                     .font(.caption2)
-                    .lineLimit(2)
+                    .lineLimit(2, reservesSpace: true)
+                    .minimumScaleFactor(0.85)
                     .multilineTextAlignment(.center)
             }
-            .frame(width: 76)
-            .padding(.vertical, 8)
+            .frame(width: 84)
+            .padding(.vertical, 10)
             .foregroundStyle(isSelected ? Theme.vitaminD : .secondary)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)

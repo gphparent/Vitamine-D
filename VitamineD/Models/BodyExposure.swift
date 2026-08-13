@@ -96,6 +96,20 @@ enum ClothingPreset: String, CaseIterable, Codable, Identifiable, Sendable {
         }
     }
 
+    /// Intitulé court, pour les pastilles de l'écran principal, où six tenues
+    /// doivent tenir côte à côte sans que la boîte change de taille.
+    var shortTitle: String {
+        switch self {
+        case .swimwear:            return "Maillot"
+        case .tankTopShorts:       return "Camisole"
+        case .tShirtShorts:        return "T-shirt\net short"
+        case .tShirtTrousers:      return "T-shirt\net pantalon"
+        case .longSleevesTrousers: return "Manches\nlongues"
+        case .coat:                return "Manteau"
+        case .custom:              return "Sur mesure"
+        }
+    }
+
     var symbolName: String {
         switch self {
         case .swimwear:            return "figure.pool.swim"

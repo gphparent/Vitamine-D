@@ -254,10 +254,14 @@ struct OptimalWindowCountdown: View {
         }
     }
 
+    /// Rendu sans habillage de carte : le décompte se place à l'intérieur de la
+    /// carte d'état, au-dessus de la jauge, plutôt que d'occuper une carte à
+    /// lui seul. Les deux disent la même chose à deux échelles — ce qu'il en
+    /// est maintenant, et ce qui vient — et se lisent mieux ensemble.
     var body: some View {
         let copy = self.copy
 
-        return Card {
+        return VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top, spacing: 14) {
                 Image(systemName: copy.symbol)
                     .font(.title2)
