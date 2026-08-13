@@ -4,6 +4,7 @@ struct TodayView: View {
 
     @Environment(AppModel.self) private var model
     @State private var showsLocationPicker = false
+    @State private var showsClothing = false
 
     var body: some View {
         NavigationStack {
@@ -12,11 +13,13 @@ struct TodayView: View {
                     if model.location == nil {
                         locationPrompt
                     } else {
+                        locationRow
                         if let plan = model.plan {
                             OptimalWindowCountdown(plan: plan, now: model.now)
                         }
                         notices
                         statusCard
+                        clothingCard
                         if let plan = model.plan {
                             recommendations(plan)
                             Card { DayChart(plan: plan, now: model.now) }
@@ -30,16 +33,6 @@ struct TodayView: View {
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle("Vitamine D")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        showsLocationPicker = true
-                    } label: {
-                        Label(model.location?.name ?? "Lieu",
-                              systemImage: model.location?.isManual == true ? "mappin" : "location.fill")
-                            .labelStyle(.titleAndIcon)
-                            .font(.subheadline)
-                    }
-                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         Task { await model.refresh() }
@@ -51,10 +44,66 @@ struct TodayView: View {
             }
             .refreshable { await model.refresh() }
             .sheet(isPresented: $showsLocationPicker) { LocationPickerView() }
+            .sheet(isPresented: $showsClothing) {
+                ClothingView(exposure: Binding(
+                    get: { model.profile.exposure },
+                    set: { model.updateSessionExposure($0) }))
+            }
         }
     }
 
     // MARK: - Sections
+
+    /// Le lieu, en toutes lettres, et la porte d'entrée vers l'année.
+    ///
+    /// La latitude n'est pas un détail de réglage : elle décide à elle seule
+    /// s'il existe une saison où rien ne se produit. L'afficher en tête, et
+    /// mener d'un geste à la courbe annuelle, met cette dépendance sous les
+    /// yeux plutôt que dans un sous-menu.
+    private var locationRow: some View {
+        NavigationLink {
+            YearView()
+        } label: {
+            Card {
+                HStack(spacing: 12) {
+                    Image(systemName: model.location?.isManual == true ? "mappin" : "location.fill")
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.vitaminD)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(model.location?.name ?? "Position")
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                        Text(latitudeLine)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    Text("L'année")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var latitudeLine: String {
+        guard let location = model.location else { return "Position inconnue" }
+        let latitude = String(format: "%.1f°", abs(location.latitude))
+        let hemisphere = location.latitude >= 0 ? "N" : "S"
+        guard let outlook = model.yearOutlook, outlook.hasWinter,
+              let winter = outlook.winter else {
+            return "\(latitude) \(hemisphere) · pas d'hiver vitaminique"
+        }
+        return "\(latitude) \(hemisphere) · hiver vitaminique du "
+            + Format.shortDate(winter.start, in: outlook.timeZone)
+    }
 
     private var locationPrompt: some View {
         Card {
@@ -168,6 +217,89 @@ struct TodayView: View {
                            glossary: .internationalUnits)
             }
         }
+    }
+
+    /// Choix de la tenue, à même l'écran principal.
+    ///
+    /// La surface de peau découverte pèse aussi lourd que la hauteur du Soleil
+    /// dans tout ce qui s'affiche au-dessus : la reléguer dans un réglage
+    /// revenait à laisser tourner le calcul sur une hypothèse invisible. Un
+    /// manteau et un t-shirt donnent des durées dans un rapport de un à six.
+    private var clothingCard: some View {
+        Card(title: "Tenue", systemImage: "tshirt") {
+            HStack(alignment: .firstTextBaseline) {
+                Text(model.profile.exposure.preset.title)
+                    .font(.headline)
+                Spacer()
+                Text(String(format: "%.0f %%", model.profile.exposure.exposedBodyPercentage))
+                    .font(.headline.monospacedDigit())
+                    .foregroundStyle(Theme.vitaminD)
+                Text("de peau")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(quickPresets) { preset in
+                        presetChip(preset)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+
+            HStack(spacing: 10) {
+                if model.profile.exposure.sunscreenSPF > 1 {
+                    Label("IP \(model.profile.exposure.sunscreenSPF)", systemImage: "drop.fill")
+                }
+                if model.profile.exposure.wearsHat {
+                    Text("Chapeau")
+                }
+                Spacer()
+                Button("Détails et protection") { showsClothing = true }
+                    .font(.caption.weight(.medium))
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    /// Les tenues courantes, dans l'ordre du plus couvert au moins couvert. La
+    /// tenue personnalisée reste dans la feuille de détail.
+    private var quickPresets: [ClothingPreset] {
+        [.coat, .longSleevesTrousers, .tShirtTrousers, .tShirtShorts, .tankTopShorts, .swimwear]
+    }
+
+    private func presetChip(_ preset: ClothingPreset) -> some View {
+        let isSelected = model.profile.exposure.preset == preset
+
+        return Button {
+            var exposure = model.profile.exposure
+            exposure.preset = preset
+            // Passe par le modèle plutôt que par le profil : si une sortie est
+            // en cours, le changement de tenue doit ouvrir un nouveau segment,
+            // sinon la dose déjà accumulée serait recalculée à tort.
+            model.updateSessionExposure(exposure)
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: preset.symbolName)
+                    .font(.body)
+                Text(preset.title)
+                    .font(.caption2)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(width: 76)
+            .padding(.vertical, 8)
+            .foregroundStyle(isSelected ? Theme.vitaminD : .secondary)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isSelected
+                          ? Theme.vitaminD.opacity(0.14)
+                          : Color.secondary.opacity(0.10))
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private func recommendations(_ plan: DayPlan) -> some View {

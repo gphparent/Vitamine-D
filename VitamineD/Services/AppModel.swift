@@ -22,6 +22,9 @@ final class AppModel {
     private(set) var location: ResolvedLocation?
     private(set) var snapshot: WeatherSnapshot?
     private(set) var plan: DayPlan?
+    /// La course du Soleil sur l'année entière au lieu courant. Sert à situer
+    /// la journée dans sa saison, et à préparer l'hiver vitaminique.
+    private(set) var yearOutlook: YearOutlook?
     private(set) var activeSession: ExposureSession?
     private(set) var progress: SessionProgress = .zero
     private(set) var history: [SessionRecord] = []
@@ -164,6 +167,15 @@ final class AppModel {
         return light.window.end > now
     }
 
+    // MARK: - Hiver
+
+    /// Bilan d'avant-hiver : ce qui reste de saison utile, et ce que devient la
+    /// réserve constituée jusqu'ici.
+    var winterPlan: WinterPlanner.Plan? {
+        guard let yearOutlook else { return nil }
+        return WinterPlanner.plan(on: now, outlook: yearOutlook, history: history)
+    }
+
     var todayTotalIU: Double {
         history.totalIU(on: now, calendar: calendar)
             + (activeSession != nil ? progress.vitaminDIU : 0)
@@ -258,16 +270,29 @@ final class AppModel {
     // MARK: - Plan
 
     private func rebuildPlan() {
-        guard let location else { plan = nil; return }
+        guard let location else { plan = nil; yearOutlook = nil; return }
         let forecast = snapshot?.hourly ?? []
+        let zone = snapshot?.timeZone ?? .current
         plan = DayPlanner.makePlan(
             date: now,
             latitude: location.latitude,
             longitude: location.longitude,
-            timeZone: snapshot?.timeZone ?? .current,
+            timeZone: zone,
             profile: profile,
             environment: environment,
             forecast: forecast)
+
+        // L'année ne dépend ni de la météo ni du profil : on ne la recalcule que
+        // si le lieu ou l'année civile ont changé.
+        let year = calendar.component(.year, from: now)
+        if yearOutlook?.latitude != location.latitude
+            || yearOutlook?.longitude != location.longitude
+            || yearOutlook?.year != year {
+            yearOutlook = YearPlanner.outlook(containing: now,
+                                              latitude: location.latitude,
+                                              longitude: location.longitude,
+                                              timeZone: zone)
+        }
     }
 
     /// Plan d'un jour quelconque, pour la vue des prochains jours.

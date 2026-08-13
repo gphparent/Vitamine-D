@@ -72,6 +72,40 @@ enum Format {
         "\(time(interval.start, in: timeZone)) – \(time(interval.end, in: timeZone))"
     }
 
+    /// « 12 août ».
+    static func shortDate(_ date: Date, in timeZone: TimeZone? = nil) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "fr_CA")
+        formatter.timeZone = timeZone ?? .current
+        formatter.dateFormat = "d MMMM"
+        return formatter.string(from: date)
+    }
+
+    /// « jeudi 12 août ».
+    static func longDate(_ date: Date, in timeZone: TimeZone? = nil) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "fr_CA")
+        formatter.timeZone = timeZone ?? .current
+        formatter.dateFormat = "EEEE d MMMM"
+        return formatter.string(from: date)
+    }
+
+    /// « août », pour un axe de graphique.
+    static func monthAbbreviation(_ date: Date, in timeZone: TimeZone? = nil) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "fr_CA")
+        formatter.timeZone = timeZone ?? .current
+        formatter.dateFormat = "MMM"
+        return formatter.string(from: date)
+    }
+
+    /// « 6 novembre – 5 février ». La borne de fin d'un intervalle de jours
+    /// pleins tombe à minuit le lendemain : on affiche la veille.
+    static func dateRange(_ interval: DateInterval, in timeZone: TimeZone? = nil) -> String {
+        let last = interval.end.addingTimeInterval(-1)
+        return "\(shortDate(interval.start, in: timeZone)) – \(shortDate(last, in: timeZone))"
+    }
+
     /// Heure exprimée en minutes depuis minuit : « 6 h 45 ».
     static func minuteOfDay(_ minutes: Int) -> String {
         let wrapped = ((minutes % 1440) + 1440) % 1440
