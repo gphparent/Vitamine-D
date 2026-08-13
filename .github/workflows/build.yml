@@ -192,3 +192,93 @@ jobs:
           name: VitamineD-ipa
           path: VitamineD.ipa
           retention-days: 30
+
+  testflight:
+    name: Publier sur TestFlight
+    runs-on: macos-latest
+    # Sur demande : chaque téléversement crée une version chez Apple, et rien
+    # n'oblige à en produire une à chaque commit.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || contains(github.event.head_commit.message, '[testflight]')
+
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Déposer la clé d'API
+        env:
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          # xcodebuild attend la clé sous ce nom précis. Elle vit dans le
+          # dossier temporaire de l'exécuteur, détruit avec la machine.
+          mkdir -p "$RUNNER_TEMP/private_keys"
+          printf '%s' "$ASC_PRIVATE_KEY" > "$RUNNER_TEMP/private_keys/AuthKey_$ASC_KEY_ID.p8"
+          chmod 600 "$RUNNER_TEMP/private_keys/AuthKey_$ASC_KEY_ID.p8"
+
+      - name: Archiver
+        run: |
+          set -o pipefail
+          # Le numéro de version interne doit croître à chaque téléversement,
+          # sans quoi Apple refuse le paquet comme doublon. Le compteur
+          # d'exécutions de GitHub s'en charge et ne recule jamais.
+          xcodebuild archive \
+            -project VitamineD.xcodeproj \
+            -scheme VitamineD \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/VitamineD.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/private_keys/AuthKey_$ASC_KEY_ID.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER"
+
+      - name: Exporter et téléverser
+        run: |
+          set -o pipefail
+          # `destination: upload` fait envoyer l'archive directement à App
+          # Store Connect par xcodebuild, sans passer par un outil tiers.
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          PLIST
+
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/VitamineD.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/private_keys/AuthKey_$ASC_KEY_ID.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+
+          echo "Version $GITHUB_RUN_NUMBER envoyée. Apple met dix à trente"
+          echo "minutes à la traiter avant qu'elle apparaisse dans TestFlight."
+
+      - name: Conserver les journaux en cas d'échec
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: journaux-testflight
+          path: |
+            /Users/runner/Library/Logs/gym
+            ${{ runner.temp }}/export
+          retention-days: 7
+          if-no-files-found: ignore
