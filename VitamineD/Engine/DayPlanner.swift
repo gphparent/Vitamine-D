@@ -148,6 +148,7 @@ enum DayPlanner {
                          profile: UserProfile,
                          environment: EnvironmentFactors = .standard,
                          carried: Double = 0,
+                         carriedMED: Double = 0,
                          forecast: [UVConditions]) -> DayPlan {
 
         var calendar = Calendar(identifier: .gregorian)
@@ -198,7 +199,8 @@ enum DayPlanner {
 
         let windows = buildWindows(from: samples)
         let recommendations = buildRecommendations(
-            samples: samples, profile: profile, carried: carried, calendar: calendar)
+            samples: samples, profile: profile, carried: carried,
+            carriedMED: carriedMED, calendar: calendar)
 
         let peakElevation = samples.map(\.solarElevation).max() ?? -90
         let peakUV = samples.map(\.uvIndex).max() ?? 0
@@ -479,11 +481,15 @@ enum DayPlanner {
                                 samples: [TimelineSample],
                                 profile: UserProfile,
                                 carried: Double = 0,
+                                carriedMED: Double = 0,
                                 maximumDuration: TimeInterval = maximumSessionDuration)
     -> SessionRecommendation? {
         guard index < samples.count, samples[index].isSynthesisPossible else { return nil }
 
-        let burnLimit = profile.burnAlertFraction
+        // Ce qui reste de capital cutané pour aujourd'hui, et non l'allocation
+        // pleine : la sortie du matin ne se rembourse pas à midi.
+        let burnLimit = max(0, profile.burnAlertFraction - max(0, carriedMED))
+        guard burnLimit > 0.01 else { return nil }
 
         // Dose cumulée — charge héritée comprise — à laquelle l'objectif du
         // jour serait atteint. `nil` quand le plafond l'interdit : ni la tenue
@@ -601,6 +607,7 @@ enum DayPlanner {
     private static func buildRecommendations(samples: [TimelineSample],
                                              profile: UserProfile,
                                              carried: Double,
+                                             carriedMED: Double,
                                              calendar: Calendar) -> [SessionRecommendation] {
         var candidates: [SessionRecommendation] = []
         // Un candidat tous les quarts d'heure : assez fin pour bien placer le
@@ -608,7 +615,8 @@ enum DayPlanner {
         let stride = max(1, Int((15 * 60) / sampleInterval))
         for index in Swift.stride(from: 0, to: samples.count, by: stride) {
             if let session = simulateSession(startingAt: index, samples: samples,
-                                             profile: profile, carried: carried) {
+                                             profile: profile, carried: carried,
+                                             carriedMED: carriedMED) {
                 candidates.append(session)
             }
         }

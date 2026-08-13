@@ -19,8 +19,18 @@ struct ClothingView: View {
                 } header: {
                     Text("Tenue")
                 } footer: {
-                    Text("La surface de peau découverte entre directement dans le calcul : "
-                         + "doubler la surface exposée divise par deux le temps nécessaire.")
+                    Text("""
+                    La surface de peau découverte entre directement dans le calcul : \
+                    doubler la surface exposée divise par deux le temps nécessaire.
+
+                    Le calcul suppose que la peau couverte ne reçoit rien. Sous un \
+                    vêtement épais ou serré, c'est exact ; un jean ou un tissu foncé \
+                    arrêtent la totalité du rayonnement. Un t-shirt de coton blanc en \
+                    laisse en revanche passer environ un dixième, et bien davantage \
+                    s'il est mouillé ou distendu — un maillot trempé ne protège \
+                    presque plus. L'hypothèse retenue sous-estime donc légèrement la \
+                    vitamine D produite, mais aussi le risque de rougeur.
+                    """)
                 }
 
                 if exposure.preset == .custom {

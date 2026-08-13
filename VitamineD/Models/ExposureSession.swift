@@ -72,7 +72,22 @@ struct SessionProgress: Equatable, Sendable {
     /// Rendement marginal restant, de 0 à 1.
     let marginalYield: Double
 
+    /// Ce que la journée avait déjà consommé et produit avant cette sortie.
+    ///
+    /// L'érythème ne se compte pas par sortie mais par journée : la peau
+    /// n'oublie pas la dose du matin parce qu'on a rangé le téléphone. Deux
+    /// sorties à la moitié du seuil font une rougeur, et les afficher chacune
+    /// à 50 % était le plus dangereux des arrondis.
+    var carriedMEDFraction: Double = 0
+    var carriedVitaminDIU: Double = 0
+
     var vitaminDPercentOfGoal: Double = 0
+
+    /// Capital cutané dépensé depuis le début de la journée.
+    var dayMEDFraction: Double { carriedMEDFraction + medFraction }
+
+    /// Vitamine D synthétisée depuis le début de la journée.
+    var dayVitaminDIU: Double { carriedVitaminDIU + vitaminDIU }
 
     static let zero = SessionProgress(elapsed: 0, vitaminDIU: 0, rawVitaminDIU: 0,
                                       medFraction: 0, currentRates: .zero, marginalYield: 1)
@@ -93,8 +108,9 @@ struct SessionProgress: Equatable, Sendable {
         }
     }
 
+    /// Niveau d'alerte, jugé sur la journée entière et non sur la seule sortie.
     func burnLevel(alertFraction: Double) -> BurnLevel {
-        switch medFraction {
+        switch dayMEDFraction {
         case ..<(alertFraction * 0.6):  return .safe
         case ..<alertFraction:          return .caution
         case ..<(alertFraction * 1.35): return .warning
@@ -117,10 +133,15 @@ enum SessionIntegrator {
     /// - Parameter carried: charge photochimique déjà présente dans la peau au
     ///   début de la sortie, héritée des expositions précédentes. La sortie ne
     ///   repart donc pas du bas de la courbe de saturation.
+    /// - Parameter carriedMED: part de la dose érythémale déjà consommée
+    ///   aujourd'hui, avant cette sortie.
+    /// - Parameter carriedIU: vitamine D déjà synthétisée aujourd'hui.
     static func progress(for session: ExposureSession,
                          at date: Date,
                          environment: EnvironmentFactors,
                          carried: Double = 0,
+                         carriedMED: Double = 0,
+                         carriedIU: Double = 0,
                          uvIndexAt: (Date) -> Double) -> SessionProgress {
 
         let end = min(date, session.endDate ?? date)
@@ -158,8 +179,10 @@ enum SessionIntegrator {
             currentRates: lastRates,
             marginalYield: UVEngine.marginalYield(rawIU: carried + rawIU, profile: profileNow)
         )
+        progress.carriedMEDFraction = carriedMED
+        progress.carriedVitaminDIU = carriedIU
         progress.vitaminDPercentOfGoal = profileNow.dailyGoalIU > 0
-            ? progress.vitaminDIU / profileNow.dailyGoalIU
+            ? progress.dayVitaminDIU / profileNow.dailyGoalIU
             : 0
         return progress
     }
@@ -174,6 +197,8 @@ enum SessionIntegrator {
                               environment: EnvironmentFactors,
                               horizon: TimeInterval = 4 * 3600,
                               carried: Double = 0,
+                              carriedMED: Double = 0,
+                              carriedIU: Double = 0,
                               uvIndexAt: (Date) -> Double,
                               reaching predicate: (SessionProgress) -> Bool) -> Date? {
 
@@ -203,8 +228,10 @@ enum SessionIntegrator {
                 medFraction: medFraction,
                 currentRates: rates,
                 marginalYield: UVEngine.marginalYield(rawIU: carried + rawIU, profile: profile))
+            candidate.carriedMEDFraction = carriedMED
+            candidate.carriedVitaminDIU = carriedIU
             candidate.vitaminDPercentOfGoal = profile.dailyGoalIU > 0
-                ? candidate.vitaminDIU / profile.dailyGoalIU : 0
+                ? candidate.dayVitaminDIU / profile.dailyGoalIU : 0
 
             if predicate(candidate) { return cursor > now ? cursor : now }
         }

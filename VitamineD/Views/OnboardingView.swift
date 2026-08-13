@@ -17,8 +17,12 @@ struct OnboardingView: View {
     @State private var chosenType: SkinType?
     @State private var age = 35
 
-    /// Bienvenue, ascendance, les cinq questions, puis le résultat.
-    private var stepCount: Int { PhototypeQuestionnaire.questions.count + 3 }
+    /// Trois pages d'explication, l'âge, l'ascendance, les cinq questions,
+    /// puis le résultat.
+    private var stepCount: Int { PhototypeQuestionnaire.questions.count + 6 }
+
+    /// Rang de la première question du questionnaire.
+    private static let firstQuestionStep = 5
 
     var body: some View {
         NavigationStack {
@@ -57,16 +61,87 @@ struct OnboardingView: View {
     @ViewBuilder
     private var content: some View {
         switch step {
-        case 0:      welcome
-        case 1:      ancestryStep
+        case 0:      purpose
+        case 1:      uvbWindow
+        case 2:      fabricPrimer
+        case 3:      welcome
+        case 4:      ancestryStep
         case stepCount - 1: result
-        default:     question(PhototypeQuestionnaire.questions[step - 2])
+        default:     question(PhototypeQuestionnaire.questions[step - Self.firstQuestionStep])
         }
+    }
+
+    // MARK: - Pages d'explication
+
+    private func page(_ symbol: String, _ title: String, _ body: String) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Image(systemName: symbol)
+                .font(.system(size: 52))
+                .foregroundStyle(Theme.vitaminD)
+
+            Text(title)
+                .font(.largeTitle.weight(.semibold))
+
+            Text(body)
+                .font(.body)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var purpose: some View {
+        page("sun.max.trianglebadge.exclamationmark", "À quoi sert cette application", """
+        Le Soleil fabrique votre vitamine D et abîme votre peau par le même \
+        rayonnement, dans les mêmes minutes. Il n'existe aucune exposition qui \
+        donne l'un sans l'autre : toute la question est le rapport entre les deux.
+
+        L'application tient donc deux comptes en parallèle — ce que vous \
+        produisez, et ce que vous dépensez — puis vous dit quand sortir, \
+        combien de temps, et quand rentrer.
+
+        Elle n'est pas un dispositif médical, et ne mesure rien dans votre sang. \
+        Elle calcule des ordres de grandeur à partir de la position du Soleil, \
+        de la météo, de votre peau et de votre tenue.
+        """)
+    }
+
+    private var uvbWindow: some View {
+        page("angle", "Pourquoi la hauteur du Soleil décide de tout", """
+        Seuls les UVB déclenchent la synthèse, et l'ozone les absorbe bien plus \
+        fortement que le reste du rayonnement. Quand le Soleil descend, le trajet \
+        dans l'atmosphère s'allonge et les UVB disparaissent les premiers.
+
+        Il reste alors de la lumière, de la chaleur, un indice UV non nul — et \
+        pourtant plus rien pour la vitamine D. Un soleil de fin d'après-midi peut \
+        vous brûler sans rien produire du tout.
+
+        D'où la règle de l'ombre, qui ne demande aucun instrument : tant que votre \
+        ombre est plus courte que vous, le Soleil dépasse 45° et les UVB passent. \
+        C'est aussi pourquoi il existe, sous nos latitudes, une saison entière où \
+        aucune durée d'exposition ne produit quoi que ce soit.
+        """)
+    }
+
+    private var fabricPrimer: some View {
+        page("tshirt", "Ce que les vêtements laissent passer", """
+        La surface de peau découverte entre directement dans le calcul : doubler \
+        la surface exposée divise par deux le temps nécessaire. C'est le réglage \
+        le plus utile à tenir à jour, et il est en première page.
+
+        Le tissu n'est pas un mur pour autant. Un t-shirt de coton blanc arrête \
+        environ 90 % du rayonnement, un tissu foncé et serré presque tout, un \
+        jean la totalité. Mais un tissu mouillé ou distendu en laisse passer \
+        bien davantage — un t-shirt blanc trempé ne protège presque plus.
+
+        L'application fait l'hypothèse simple que la peau couverte ne reçoit \
+        rien. Sous un vêtement épais c'est exact ; sous un t-shirt fin et clair, \
+        cela sous-estime un peu la vitamine D produite, mais aussi le risque de \
+        rougeur. Retenez-le les jours de forte chaleur.
+        """)
     }
 
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Image(systemName: "sun.max.fill")
+            Image(systemName: "person.crop.circle")
                 .font(.system(size: 52))
                 .foregroundStyle(Theme.vitaminD)
 
@@ -241,8 +316,9 @@ struct OnboardingView: View {
     /// On n'exige une réponse que pour les questions ; l'ascendance reste
     /// facultative, et l'écran de résultat propose toujours une valeur.
     private var canAdvance: Bool {
-        guard step >= 2, step < stepCount - 1 else { return true }
-        return questionnaire.answers[PhototypeQuestionnaire.questions[step - 2].id] != nil
+        guard step >= Self.firstQuestionStep, step < stepCount - 1 else { return true }
+        let question = PhototypeQuestionnaire.questions[step - Self.firstQuestionStep]
+        return questionnaire.answers[question.id] != nil
     }
 
     private func finish() {

@@ -58,6 +58,15 @@ extension Array where Element == SessionRecord {
             .reduce(0) { $0 + $1.vitaminDIU }
     }
 
+    /// Capital cutané dépensé sur une journée donnée, en fractions de DEM.
+    ///
+    /// Les fractions s'additionnent : la dose érythémale est cumulative sur la
+    /// journée, et c'est la somme qui décide de la rougeur, non le maximum.
+    func totalMEDFraction(on day: Date, calendar: Calendar) -> Double {
+        filter { calendar.isDate($0.start, inSameDayAs: day) }
+            .reduce(0) { $0 + $1.medFraction }
+    }
+
     /// Total sur les sept derniers jours.
     func totalIU(lastDays days: Int, from date: Date = Date()) -> Double {
         let cutoff = date.addingTimeInterval(-Double(days) * 86_400)

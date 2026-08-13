@@ -100,8 +100,126 @@ struct HistoryView: View {
 
                 Divider()
                 reserveContent(plan)
+                Divider()
+                forecastContent(plan)
             }
         }
+    }
+
+    // MARK: - Réserves à venir
+
+    /// Ce que devient la réserve d'ici l'hiver, au rythme actuel.
+    ///
+    /// La courbe a une forme caractéristique — un plateau, puis une chute à
+    /// l'entrée de l'hiver — et c'est elle qui répond à la vraie question. Il
+    /// ne s'agit pas de savoir combien emmagasiner, mais à quelle hauteur
+    /// entrer dans la saison creuse : passé le seuil, l'apport tombe à zéro et
+    /// seule la décroissance continue.
+    @ViewBuilder
+    private func forecastContent(_ plan: WinterPlanner.Plan) -> some View {
+        let daily = WinterPlanner.recentDailyIU(on: model.now, history: model.history)
+        let points = WinterPlanner.forecast(
+            from: model.now,
+            reserve: plan.reserve,
+            dailyIU: daily,
+            winterStart: plan.hasStarted ? model.now : plan.winter.start,
+            through: plan.winter.end)
+
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Réserves à venir")
+                    .font(.subheadline.weight(.medium))
+                Spacer()
+                Text("rythme actuel : \(Int(daily.rounded())) UI/jour")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+
+            Chart {
+                if !plan.hasStarted {
+                    RectangleMark(
+                        xStart: .value("Début", plan.winter.start),
+                        xEnd: .value("Fin", plan.winter.end),
+                        yStart: .value("Bas", 0.0),
+                        yEnd: .value("Haut", forecastCeiling(points))
+                    )
+                    .foregroundStyle(Color.blue.opacity(0.10))
+                }
+
+                ForEach(points, id: \.date) { point in
+                    AreaMark(
+                        x: .value("Date", point.date),
+                        y: .value("Réserve", point.reserve)
+                    )
+                    .foregroundStyle(
+                        .linearGradient(
+                            colors: [Theme.vitaminD.opacity(0.40), Theme.vitaminD.opacity(0.04)],
+                            startPoint: .top, endPoint: .bottom))
+                    .interpolationMethod(.monotone)
+                }
+            }
+            .chartYScale(domain: 0.0...forecastCeiling(points))
+            .chartYAxis(.hidden)
+            .chartXAxis {
+                AxisMarks(values: .stride(by: .month, count: 1)) { value in
+                    AxisGridLine()
+                    AxisValueLabel {
+                        if let date = value.as(Date.self) {
+                            Text(Format.monthAbbreviation(date, in: model.calendar.timeZone))
+                        }
+                    }
+                }
+            }
+            .frame(height: 120)
+
+            Text(cadenceAdvice(plan, daily: daily))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func forecastCeiling(_ points: [(date: Date, reserve: Double)]) -> Double {
+        let peak = points.map(\.reserve).max() ?? 0
+        return max(1_000, peak * 1.2)
+    }
+
+    /// Ce qu'il faudrait faire, dit en sorties plutôt qu'en unités.
+    ///
+    /// Le régime permanent du réservoir vaut apport quotidien × constante de
+    /// temps. Viser l'objectif quotidien revient donc à viser une réserve de
+    /// `objectif × 29 jours` — et l'écart entre le rythme actuel et celui-là se
+    /// traduit en un nombre de sorties par semaine, seule forme sous laquelle
+    /// un conseil de ce genre est utilisable.
+    private func cadenceAdvice(_ plan: WinterPlanner.Plan, daily: Double) -> String {
+        guard !plan.hasStarted else {
+            return "L'apport est nul jusqu'au printemps : la courbe ne fait plus que "
+                + "descendre. C'est la période où l'alimentation et la supplémentation "
+                + "prennent le relais."
+        }
+
+        let goal = model.profile.dailyGoalIU
+        guard goal > 0 else { return "Fixez un objectif quotidien pour obtenir un rythme." }
+
+        let sessionsPerWeek = min(7.0, max(0, (goal - daily) / max(goal, 1)) * 7)
+        let atWinter = WinterPlanner.reserve(
+            after: Double(plan.daysUntilStart), starting: plan.reserve, dailyIU: daily)
+        let equivalent = Int(WinterPlanner.equivalentDailyIU(reserve: atWinter).rounded())
+
+        var advice = "À ce rythme, vous entreriez dans l'hiver avec l'équivalent de "
+        advice += "\(equivalent) UI par jour. "
+        if sessionsPerWeek < 0.5 {
+            advice += "C'est déjà le niveau de votre objectif : tenez-le jusqu'au "
+            advice += "\(Format.shortDate(plan.winter.start, in: model.calendar.timeZone))."
+        } else {
+            let rounded = Int(sessionsPerWeek.rounded())
+            advice += "Environ \(max(1, rounded)) sortie\(rounded > 1 ? "s" : "") de plus par "
+            advice += "semaine d'ici là vous amènerait au niveau de votre objectif. "
+            advice += "La régularité compte davantage que l'intensité : le réservoir "
+            advice += "tend vers l'apport moyen, et une sortie héroïque ne survit pas "
+            advice += "à six semaines."
+        }
+        return advice
     }
 
     private func aheadContent(_ plan: WinterPlanner.Plan) -> some View {

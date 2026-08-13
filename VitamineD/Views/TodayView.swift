@@ -187,15 +187,25 @@ struct TodayView: View {
                            value: rateText,
                            detail: model.profile.exposure.summary,
                            tint: Theme.vitaminD)
+                MetricTile(label: "Vitamine D",
+                           value: Format.iu(model.todayTotalIU),
+                           detail: "objectif \(Int(model.profile.dailyGoalIU)) UI",
+                           tint: Theme.vitaminD,
+                           glossary: .internationalUnits)
                 MetricTile(label: "Coup de soleil",
                            value: burnText,
                            detail: burnDetail,
                            glossary: .minimalErythemalDose)
-                MetricTile(label: "Aujourd'hui",
-                           value: Format.iu(model.todayTotalIU),
-                           detail: "objectif \(Int(model.profile.dailyGoalIU)) UI",
-                           glossary: .internationalUnits)
             }
+
+            // Les deux comptes de la journée, et non ceux d'une sortie : la
+            // peau additionne le matin et l'après-midi, et deux demi-doses
+            // font une rougeur.
+            DualProgressBar(
+                vitaminDFraction: model.profile.dailyGoalIU > 0
+                    ? model.todayTotalIU / model.profile.dailyGoalIU : 0,
+                medFraction: model.todayTotalMEDFraction,
+                burnLevel: model.todayBurnLevel)
         }
     }
 
@@ -409,8 +419,12 @@ struct TodayView: View {
     private var burnText: String {
         guard model.currentRates.medFractionPerMinute > 0.0001,
               let plan = model.plan else { return "—" }
+        // Ce qui reste de la dose du jour, et non une dose entière : le seuil
+        // de rougeur se franchit avec la somme de la journée.
+        let remaining = max(0, 1 - model.todayTotalMEDFraction)
+        guard remaining > 0.01 else { return "seuil atteint" }
         guard let seconds = DayPlanner.timeToErythema(
-            from: model.now, samples: plan.samples) else {
+            from: model.now, samples: plan.samples, fraction: remaining) else {
             // Le Soleil se couchera avant que la dose suffise.
             return "hors d'atteinte"
         }
@@ -418,9 +432,12 @@ struct TodayView: View {
     }
 
     private var burnDetail: String {
-        model.currentRates.medFractionPerMinute > 0.0001
-            ? "peau nue, montée du Soleil comprise"
-            : "peau nue, sans protection"
+        guard model.currentRates.medFractionPerMinute > 0.0001 else {
+            return "peau nue, sans protection"
+        }
+        return model.todayTotalMEDFraction > 0.02
+            ? "en comptant ce qui est déjà dépensé"
+            : "peau nue, montée du Soleil comprise"
     }
 }
 

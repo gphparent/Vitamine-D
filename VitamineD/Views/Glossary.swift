@@ -18,6 +18,7 @@ enum GlossaryEntry: String, Identifiable, CaseIterable, Sendable {
     case phototype
     case acclimatisation
     case yield
+    case fabric
 
     var id: String { rawValue }
 
@@ -34,6 +35,7 @@ enum GlossaryEntry: String, Identifiable, CaseIterable, Sendable {
         case .phototype:            return "Phototype"
         case .acclimatisation:      return "Acclimatation"
         case .yield:                return "Rendement"
+        case .fabric:               return "Tissu et rayonnement"
         }
     }
 
@@ -62,6 +64,8 @@ enum GlossaryEntry: String, Identifiable, CaseIterable, Sendable {
             return "Ce que les expositions récentes ont épaissi et pigmenté."
         case .yield:
             return "La vitamine D obtenue par unité de capital cutané dépensé."
+        case .fabric:
+            return "Ce qu'un vêtement laisse réellement passer."
         }
     }
 
@@ -215,6 +219,25 @@ enum GlossaryEntry: String, Identifiable, CaseIterable, Sendable {
             Le meilleur rapport est toujours le Soleil le plus haut — à \
             condition d'y rester peu. À 20° de hauteur, il faut dépenser huit \
             fois plus de capital cutané pour la même vitamine D qu'à 65°.
+            """
+        case .fabric:
+            return """
+            Un vêtement n'est pas un interrupteur. Il se mesure par un indice de \
+            protection, l'UPF, qui dit quelle fraction du rayonnement il arrête.
+
+            Un t-shirt de coton blanc se situe vers UPF 10 : il laisse passer \
+            environ un dixième du rayonnement. Un tissu foncé, serré ou \
+            synthétique monte à plusieurs centaines, et un jean arrête tout. \
+            Trois choses font chuter la protection — l'humidité, l'étirement et \
+            l'usure. Un t-shirt blanc mouillé peut tomber vers UPF 3, soit à \
+            peine mieux que rien.
+
+            L'application retient l'hypothèse simple : la peau couverte ne reçoit \
+            rien, la peau découverte reçoit tout. Sous un vêtement épais c'est \
+            juste. Sous un t-shirt fin, cela sous-estime la vitamine D produite — \
+            et, ce qui compte davantage, cela sous-estime aussi le rayonnement \
+            reçu. Les jours de forte chaleur, où les tissus sont fins et humides, \
+            considérez que vous êtes un peu plus exposé que ce qui est affiché.
             """
         }
     }

@@ -204,9 +204,36 @@ final class AppModel {
         return WinterPlanner.plan(on: now, outlook: yearOutlook, history: history)
     }
 
-    var todayTotalIU: Double {
+    /// Ce que la journée a consommé et produit avant la sortie en cours.
+    ///
+    /// L'érythème s'accumule sur la journée entière : une sortie ne redémarre
+    /// pas de zéro, elle reprend là où la précédente s'est arrêtée.
+    var carriedMEDToday: Double {
+        history.totalMEDFraction(on: now, calendar: calendar)
+    }
+
+    var carriedIUToday: Double {
         history.totalIU(on: now, calendar: calendar)
-            + (activeSession != nil ? progress.vitaminDIU : 0)
+    }
+
+    var todayTotalIU: Double {
+        carriedIUToday + (activeSession != nil ? progress.vitaminDIU : 0)
+    }
+
+    /// Capital cutané dépensé aujourd'hui, sortie en cours comprise.
+    var todayTotalMEDFraction: Double {
+        carriedMEDToday + (activeSession != nil ? progress.medFraction : 0)
+    }
+
+    /// Niveau d'alerte cutanée pour la journée, sortie en cours ou non.
+    ///
+    /// Les seuils sont ceux d'une sortie, appliqués au total du jour : c'est
+    /// la même peau et le même seuil de rougeur, que la dose ait été prise en
+    /// une fois ou en trois.
+    var todayBurnLevel: SessionProgress.BurnLevel {
+        var probe = SessionProgress.zero
+        probe.carriedMEDFraction = todayTotalMEDFraction
+        return probe.burnLevel(alertFraction: profile.burnAlertFraction)
     }
 
     // MARK: - Cycle de vie
@@ -312,6 +339,7 @@ final class AppModel {
             profile: profile,
             environment: environment,
             carried: carriedLoad,
+            carriedMED: carriedMEDToday,
             forecast: forecast)
 
         // L'année ne dépend ni de la météo ni du profil : on ne la recalcule que
@@ -338,6 +366,7 @@ final class AppModel {
             profile: profile,
             environment: environment,
             carried: carriedLoad,
+            carriedMED: carriedMEDToday,
             forecast: snapshot?.hourly ?? [])
     }
 
@@ -358,10 +387,18 @@ final class AppModel {
                            startedAt: session.startDate,
                            state: liveActivityState(for: session))
 
+        // Valeurs saisies avant de franchir la frontière de la tâche : elles
+        // décrivent l'état de la journée à cet instant précis.
+        let carried = carriedAtSessionStart
+        let carriedMED = carriedMEDToday
+        let carriedIU = carriedIUToday
         Task {
             await notifications.scheduleSessionAlerts(
                 session: session,
                 environment: environment,
+                carried: carried,
+                carriedMED: carriedMED,
+                carriedIU: carriedIU,
                 uvIndexAt: uvIndexProvider())
         }
     }
@@ -381,10 +418,18 @@ final class AppModel {
 
         // Les alertes déjà déposées reposaient sur l'ancienne tenue : elles ne
         // valent plus rien. On les remplace.
+        // Valeurs saisies avant de franchir la frontière de la tâche : elles
+        // décrivent l'état de la journée à cet instant précis.
+        let carried = carriedAtSessionStart
+        let carriedMED = carriedMEDToday
+        let carriedIU = carriedIUToday
         Task {
             await notifications.scheduleSessionAlerts(
                 session: session,
                 environment: environment,
+                carried: carried,
+                carriedMED: carriedMED,
+                carriedIU: carriedIU,
                 uvIndexAt: uvIndexProvider())
         }
     }
@@ -433,6 +478,8 @@ final class AppModel {
         progress = SessionIntegrator.progress(
             for: session, at: now, environment: environment,
             carried: carriedAtSessionStart,
+            carriedMED: carriedMEDToday,
+            carriedIU: carriedIUToday,
             uvIndexAt: uvIndexProvider())
 
         // Le garde évite de resimuler la sortie à chaque battement d'horloge
@@ -456,14 +503,22 @@ final class AppModel {
         let goal = profile.dailyGoalIU
 
         let carried = carriedAtSessionStart
+        let carriedMED = carriedMEDToday
+        let carriedIU = carriedIUToday
+
+        // Les deux échéances se jugent sur la journée, pas sur la sortie : le
+        // seuil que l'utilisateur s'est fixé vaut pour sa peau, qui ne
+        // distingue pas les sorties.
         let burnAt = SessionIntegrator.projectedDate(
             for: session, from: now, environment: environment,
-            carried: carried, uvIndexAt: provider,
-            reaching: { $0.medFraction >= burnLimit })
+            carried: carried, carriedMED: carriedMED, carriedIU: carriedIU,
+            uvIndexAt: provider,
+            reaching: { $0.dayMEDFraction >= burnLimit })
         let goalAt = SessionIntegrator.projectedDate(
             for: session, from: now, environment: environment,
-            carried: carried, uvIndexAt: provider,
-            reaching: { $0.vitaminDIU >= goal })
+            carried: carried, carriedMED: carriedMED, carriedIU: carriedIU,
+            uvIndexAt: provider,
+            reaching: { $0.dayVitaminDIU >= goal })
 
         var stopAt: Date?
         var limit = SunSessionAttributes.ContentState.Limit.none
@@ -482,9 +537,9 @@ final class AppModel {
         }
 
         return SunSessionAttributes.ContentState(
-            vitaminDIU: progress.vitaminDIU,
+            vitaminDIU: progress.dayVitaminDIU,
             goalIU: goal,
-            medFraction: progress.medFraction,
+            medFraction: progress.dayMEDFraction,
             burnLimit: burnLimit,
             uvIndex: currentConditions?.uvIndex ?? 0,
             stopAt: stopAt,

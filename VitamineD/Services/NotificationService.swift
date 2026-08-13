@@ -45,8 +45,14 @@ final class NotificationService {
     // MARK: - Alertes de séance
 
     /// Dépose les alertes d'une sortie qui commence.
+    /// - Parameter carried: charge photochimique de la peau au début de la
+    ///   sortie ; - Parameter carriedMED et carriedIU : ce que la journée avait
+    ///   déjà dépensé et produit avant elle.
     func scheduleSessionAlerts(session: ExposureSession,
                                environment: EnvironmentFactors,
+                               carried: Double = 0,
+                               carriedMED: Double = 0,
+                               carriedIU: Double = 0,
                                uvIndexAt: @Sendable (Date) -> Double) async {
         cancelSessionAlerts()
         guard authorisationStatus == .authorized || authorisationStatus == .provisional else { return }
@@ -57,9 +63,13 @@ final class NotificationService {
         let alertFraction = profile.burnAlertFraction
         let stopFraction = min(0.9, alertFraction * 1.35)
 
+        // Toutes les échéances se jugent sur la journée entière : la peau ne
+        // distingue pas les sorties, et deux demi-doses font une rougeur.
         if let goalDate = SessionIntegrator.projectedDate(
-            for: session, from: now, environment: environment, uvIndexAt: uvIndexAt,
-            reaching: { $0.vitaminDIU >= goal }) {
+            for: session, from: now, environment: environment,
+            carried: carried, carriedMED: carriedMED, carriedIU: carriedIU,
+            uvIndexAt: uvIndexAt,
+            reaching: { $0.dayVitaminDIU >= goal }) {
             schedule(
                 identifier: Identifier.sessionGoal,
                 title: "Objectif atteint",
@@ -70,8 +80,10 @@ final class NotificationService {
         }
 
         if let cautionDate = SessionIntegrator.projectedDate(
-            for: session, from: now, environment: environment, uvIndexAt: uvIndexAt,
-            reaching: { $0.medFraction >= alertFraction }) {
+            for: session, from: now, environment: environment,
+            carried: carried, carriedMED: carriedMED, carriedIU: carriedIU,
+            uvIndexAt: uvIndexAt,
+            reaching: { $0.dayMEDFraction >= alertFraction }) {
             schedule(
                 identifier: Identifier.sessionCaution,
                 title: "Couvrez-vous bientôt",
@@ -82,8 +94,10 @@ final class NotificationService {
         }
 
         if let stopDate = SessionIntegrator.projectedDate(
-            for: session, from: now, environment: environment, uvIndexAt: uvIndexAt,
-            reaching: { $0.medFraction >= stopFraction }) {
+            for: session, from: now, environment: environment,
+            carried: carried, carriedMED: carriedMED, carriedIU: carriedIU,
+            uvIndexAt: uvIndexAt,
+            reaching: { $0.dayMEDFraction >= stopFraction }) {
             schedule(
                 identifier: Identifier.sessionStop,
                 title: "Rentrez maintenant",

@@ -123,7 +123,8 @@ struct SessionView: View {
         if canStart, let plan = model.plan,
            let index = plan.samples.firstIndex(where: { $0.date >= model.now }),
            let projection = DayPlanner.simulateSession(
-            startingAt: index, samples: plan.samples, profile: model.profile) {
+            startingAt: index, samples: plan.samples, profile: model.profile,
+            carried: model.carriedLoad, carriedMED: model.carriedMEDToday) {
             Card(title: "Si vous sortiez maintenant", systemImage: "hourglass") {
                 HStack(spacing: 12) {
                     MetricTile(label: "Durée conseillée",
@@ -132,7 +133,8 @@ struct SessionView: View {
                                value: Format.iu(projection.expectedIU),
                                tint: Theme.vitaminD)
                     MetricTile(label: "Capital cutané",
-                               value: Format.percent(projection.medFraction))
+                               value: Format.percent(projection.medFraction),
+                               detail: model.carriedMEDToday > 0.02 ? "en plus d'aujourd'hui" : nil)
                 }
                 Text(projection.limitingFactor.explanation)
                     .font(.caption)
@@ -152,15 +154,18 @@ struct SessionView: View {
                         .monospacedDigit()
                         .contentTransition(.numericText())
 
+                    // Les deux barres comptent la journée, pas la sortie : la
+                    // peau ne remet pas ses compteurs à zéro parce qu'on est
+                    // rentré déposer un manteau.
                     DualProgressBar(
                         vitaminDFraction: model.progress.vitaminDPercentOfGoal,
-                        medFraction: model.progress.medFraction,
+                        medFraction: model.progress.dayMEDFraction,
                         burnLevel: burnLevel)
 
                     HStack(spacing: 12) {
                         MetricTile(label: "Vitamine D",
-                                   value: Format.iu(model.progress.vitaminDIU),
-                                   detail: "sur \(Int(model.profile.dailyGoalIU)) UI",
+                                   value: Format.iu(model.progress.dayVitaminDIU),
+                                   detail: "sur \(Int(model.profile.dailyGoalIU)) UI aujourd'hui",
                                    tint: Theme.vitaminD)
                         MetricTile(label: "Débit",
                                    value: "\(Int(model.progress.currentRates.vitaminDIUPerMinute)) UI/min")
@@ -241,7 +246,7 @@ struct SessionView: View {
                 NoticeBanner(
                     kind: .info,
                     title: "Tout va bien",
-                    message: "Vous êtes à \(Format.percent(model.progress.medFraction)) de votre "
+                    message: "Vous êtes à \(Format.percent(model.progress.dayMEDFraction)) de votre "
                         + "seuil d'érythème.")
             }
         case .caution:

@@ -73,6 +73,79 @@ enum WinterPlanner {
         return result
     }
 
+    /// Réserve après un certain nombre de jours, sous un apport quotidien
+    /// constant.
+    ///
+    /// Le réservoir se remplit et se vide en même temps : il gagne l'apport du
+    /// jour et perd une fraction de ce qu'il contient. La solution est une
+    /// exponentielle qui tend vers `apport × constante de temps` — le régime
+    /// permanent — quel que soit le point de départ.
+    ///
+    /// C'est ce qui rend la régularité plus efficace que l'intensité : trois
+    /// sorties par semaine soutiennent un plateau, une sortie héroïque en
+    /// septembre n'est plus qu'un souvenir en novembre.
+    static func reserve(after days: Double, starting reserve: Double, dailyIU: Double) -> Double {
+        guard days > 0 else { return reserve }
+        let tau = timeConstantDays
+        let steady = max(0, dailyIU) * tau
+        return steady + (reserve - steady) * exp(-days / tau)
+    }
+
+    /// Apport quotidien moyen des derniers jours, tel qu'il ressort de
+    /// l'historique.
+    static func recentDailyIU(on date: Date, history: [SessionRecord], days: Int = 14) -> Double {
+        guard days > 0 else { return 0 }
+        let cutoff = date.addingTimeInterval(-Double(days) * 86_400)
+        let total = history
+            .filter { $0.start >= cutoff && $0.start <= date }
+            .reduce(0.0) { $0 + $1.vitaminDIU }
+        return total / Double(days)
+    }
+
+    /// Courbe de la réserve à venir : l'apport se poursuit jusqu'à l'entrée
+    /// dans l'hiver vitaminique, puis s'arrête net.
+    ///
+    /// C'est cette rupture qui donne à la courbe sa forme caractéristique — un
+    /// plateau, puis une chute — et qui explique pourquoi la question n'est pas
+    /// « combien emmagasiner » mais « à quelle hauteur entrer dans l'hiver ».
+    static func forecast(from date: Date,
+                         reserve current: Double,
+                         dailyIU: Double,
+                         winterStart: Date?,
+                         through end: Date,
+                         step: TimeInterval = 3 * 86_400) -> [(date: Date, reserve: Double)] {
+
+        guard end > date, step > 0 else { return [(date, current)] }
+
+        var result: [(date: Date, reserve: Double)] = [(date, current)]
+        var cursor = date
+        var value = current
+        var steps = 0
+
+        while cursor < end && steps < 400 {
+            steps += 1
+            let next = min(cursor.addingTimeInterval(step), end)
+            let days = next.timeIntervalSince(cursor) / 86_400
+
+            // L'apport cesse à l'entrée de l'hiver. Un pas à cheval sur la
+            // bascule est traité en deux temps, sinon la rupture serait
+            // arrondie et la chute paraîtrait plus douce qu'elle n'est.
+            if let winterStart, cursor < winterStart, next > winterStart {
+                let before = winterStart.timeIntervalSince(cursor) / 86_400
+                value = reserve(after: before, starting: value, dailyIU: dailyIU)
+                result.append((winterStart, value))
+                value = reserve(after: days - before, starting: value, dailyIU: 0)
+            } else {
+                let input = (winterStart.map { next <= $0 } ?? true) ? dailyIU : 0
+                value = reserve(after: days, starting: value, dailyIU: input)
+            }
+
+            result.append((next, value))
+            cursor = next
+        }
+        return result
+    }
+
     /// Bilan d'avant-hiver.
     struct Plan: Equatable, Sendable {
         /// Hiver vitaminique visé.
