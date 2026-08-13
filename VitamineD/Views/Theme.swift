@@ -72,6 +72,12 @@ enum Format {
         "\(time(interval.start, in: timeZone)) – \(time(interval.end, in: timeZone))"
     }
 
+    /// Heure exprimée en minutes depuis minuit : « 6 h 45 ».
+    static func minuteOfDay(_ minutes: Int) -> String {
+        let wrapped = ((minutes % 1440) + 1440) % 1440
+        return String(format: "%d h %02d", wrapped / 60, wrapped % 60)
+    }
+
     /// Durée en écriture courte : « 8 min », « 1 h 25 ».
     static func duration(_ seconds: TimeInterval) -> String {
         let total = Int(seconds.rounded())

@@ -29,6 +29,18 @@ struct UserProfile: Codable, Equatable, Sendable {
     /// L'accueil du premier lancement a-t-il été traversé ?
     var hasCompletedOnboarding: Bool
 
+    // MARK: - Lumière et horloge interne
+
+    /// Suivre aussi la lumière du matin, pour le calage circadien.
+    var tracksCircadianLight: Bool
+    /// Heure de lever habituelle, en minutes depuis minuit.
+    var wakeMinuteOfDay: Int
+    /// Heure de lever visée, si elle diffère de l'habituelle.
+    var targetWakeMinuteOfDay: Int
+    /// Durée de sommeil souhaitée, en heures.
+    var sleepHours: Double
+    var notifyMorningLight: Bool
+
     static let `default` = UserProfile(
         skinType: .iii,
         age: 35,
@@ -40,7 +52,12 @@ struct UserProfile: Codable, Equatable, Sendable {
         notifyWindowOpening: true,
         notifyDailyPlan: true,
         dailyPlanMinuteOfDay: 8 * 60,
-        hasCompletedOnboarding: false
+        hasCompletedOnboarding: false,
+        tracksCircadianLight: true,
+        wakeMinuteOfDay: 7 * 60,
+        targetWakeMinuteOfDay: 7 * 60,
+        sleepHours: 8,
+        notifyMorningLight: false
     )
 
     /// Rendement lié à l'âge.
@@ -91,6 +108,16 @@ struct UserProfile: Codable, Equatable, Sendable {
         // quelqu'un qui s'est déjà servi de l'application : lui imposer
         // l'accueil serait absurde.
         hasCompletedOnboarding = (try? container.decode(Bool.self, forKey: .hasCompletedOnboarding)) ?? true
+
+        tracksCircadianLight = (try? container.decode(Bool.self, forKey: .tracksCircadianLight))
+            ?? fallback.tracksCircadianLight
+        wakeMinuteOfDay = (try? container.decode(Int.self, forKey: .wakeMinuteOfDay))
+            ?? fallback.wakeMinuteOfDay
+        targetWakeMinuteOfDay = (try? container.decode(Int.self, forKey: .targetWakeMinuteOfDay))
+            ?? wakeMinuteOfDay
+        sleepHours = (try? container.decode(Double.self, forKey: .sleepHours)) ?? fallback.sleepHours
+        notifyMorningLight = (try? container.decode(Bool.self, forKey: .notifyMorningLight))
+            ?? fallback.notifyMorningLight
     }
 
     init(skinType: SkinType,
@@ -103,7 +130,12 @@ struct UserProfile: Codable, Equatable, Sendable {
          notifyWindowOpening: Bool,
          notifyDailyPlan: Bool,
          dailyPlanMinuteOfDay: Int,
-         hasCompletedOnboarding: Bool) {
+         hasCompletedOnboarding: Bool,
+         tracksCircadianLight: Bool,
+         wakeMinuteOfDay: Int,
+         targetWakeMinuteOfDay: Int,
+         sleepHours: Double,
+         notifyMorningLight: Bool) {
         self.skinType = skinType
         self.age = age
         self.tanLevel = tanLevel
@@ -115,5 +147,13 @@ struct UserProfile: Codable, Equatable, Sendable {
         self.notifyDailyPlan = notifyDailyPlan
         self.dailyPlanMinuteOfDay = dailyPlanMinuteOfDay
         self.hasCompletedOnboarding = hasCompletedOnboarding
+        self.tracksCircadianLight = tracksCircadianLight
+        self.wakeMinuteOfDay = wakeMinuteOfDay
+        self.targetWakeMinuteOfDay = targetWakeMinuteOfDay
+        self.sleepHours = sleepHours
+        self.notifyMorningLight = notifyMorningLight
     }
+
+    /// Le lever visé diffère-t-il de l'habituel ?
+    var wantsPhaseShift: Bool { targetWakeMinuteOfDay != wakeMinuteOfDay }
 }

@@ -17,6 +17,7 @@ struct TodayView: View {
                         if let plan = model.plan {
                             recommendations(plan)
                             Card { DayChart(plan: plan, now: model.now) }
+                            morningLightCard
                             dayFacts(plan)
                         }
                         explanation
@@ -191,6 +192,51 @@ struct TodayView: View {
                     }
                 }
             }
+        }
+    }
+
+    /// Renvoi vers le calage circadien.
+    ///
+    /// Volontairement distinct des créneaux vitamine D, et placé après eux :
+    /// c'est une autre raison de sortir, à un autre moment, par un mécanisme
+    /// sans rapport. Les mêler embrouillerait les deux.
+    @ViewBuilder
+    private var morningLightCard: some View {
+        if let light = model.morningLight {
+            NavigationLink {
+                CircadianView()
+            } label: {
+                Card(title: "Lumière du matin", systemImage: "sunrise") {
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(Format.interval(light.window, in: model.plan?.timeZone))
+                                .font(.title3.weight(.semibold).monospacedDigit())
+                                .foregroundStyle(.primary)
+                            if let minutes = light.quality.recommendedMinutes {
+                                Text("\(minutes.lowerBound) à \(minutes.upperBound) min dehors "
+                                     + "pour caler votre horloge")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text(light.quality.advice)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.footnote)
+                            .foregroundStyle(.tertiary)
+                    }
+
+                    Text("Sans rapport avec la vitamine D — le Soleil est alors "
+                         + "trop bas pour les UVB. C'est l'horloge interne que "
+                         + "cette lumière-là règle.")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(.plain)
         }
     }
 

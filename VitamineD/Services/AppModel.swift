@@ -137,6 +137,33 @@ final class AppModel {
                               environment: environment)
     }
 
+    // MARK: - Lumière et horloge interne
+
+    /// Fenêtre de lumière matinale pour aujourd'hui.
+    ///
+    /// Sans rapport avec la vitamine D : le Soleil rasant du matin ne produit
+    /// aucun UVB utile, mais c'est le meilleur signal horaire de la journée.
+    var morningLight: CircadianPlanner.MorningLight? {
+        guard profile.tracksCircadianLight, let plan else { return nil }
+        let dayStart = calendar.startOfDay(for: now)
+        let wake = dayStart.addingTimeInterval(TimeInterval(profile.wakeMinuteOfDay) * 60)
+        return CircadianPlanner.morningLight(wakeTime: wake,
+                                             samples: plan.samples,
+                                             sunrise: plan.sunrise)
+    }
+
+    var phaseShift: CircadianPlanner.PhaseShiftPlan {
+        CircadianPlanner.phaseShift(current: profile.wakeMinuteOfDay,
+                                    target: profile.targetWakeMinuteOfDay,
+                                    sleepDuration: profile.sleepHours)
+    }
+
+    /// La fenêtre de lumière matinale est-elle encore devant nous ?
+    var morningLightIsAhead: Bool {
+        guard let light = morningLight else { return false }
+        return light.window.end > now
+    }
+
     var todayTotalIU: Double {
         history.totalIU(on: now, calendar: calendar)
             + (activeSession != nil ? progress.vitaminDIU : 0)
