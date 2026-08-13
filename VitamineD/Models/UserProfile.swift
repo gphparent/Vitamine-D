@@ -40,6 +40,21 @@ struct UserProfile: Codable, Equatable, Sendable {
     /// l'utilisateur avec quelque chose qu'il n'a pas mangé.
     var readsHealthKit: Bool
 
+    /// L'application enregistre-t-elle ses sorties dans Santé ?
+    ///
+    /// Ce qui est écrit est l'exposition mesurée — indice UV moyen et durée —
+    /// qui décrit exactement ce que la sortie a été.
+    var writesHealthKit: Bool
+
+    /// Verser en plus la vitamine D synthétisée dans le champ *alimentaire*.
+    ///
+    /// Séparé du réglage précédent, et désactivé par défaut, parce que c'est le
+    /// seul point où l'application écrirait une donnée dans un champ qui ne lui
+    /// correspond pas tout à fait : HealthKit ne connaît que la vitamine D
+    /// avalée. Le total devient juste, la provenance devient fausse — et
+    /// l'arbitrage appartient à l'utilisateur, pas au programme.
+    var writesVitaminDAsDietary: Bool
+
     var tracksCircadianLight: Bool
     /// Heure de lever habituelle, en minutes depuis minuit.
     var wakeMinuteOfDay: Int
@@ -62,6 +77,8 @@ struct UserProfile: Codable, Equatable, Sendable {
         dailyPlanMinuteOfDay: 8 * 60,
         hasCompletedOnboarding: false,
         readsHealthKit: false,
+        writesHealthKit: false,
+        writesVitaminDAsDietary: false,
         tracksCircadianLight: true,
         wakeMinuteOfDay: 7 * 60,
         targetWakeMinuteOfDay: 7 * 60,
@@ -127,6 +144,10 @@ struct UserProfile: Codable, Equatable, Sendable {
         sleepHours = (try? container.decode(Double.self, forKey: .sleepHours)) ?? fallback.sleepHours
         readsHealthKit = (try? container.decode(Bool.self, forKey: .readsHealthKit))
             ?? fallback.readsHealthKit
+        writesHealthKit = (try? container.decode(Bool.self, forKey: .writesHealthKit))
+            ?? fallback.writesHealthKit
+        writesVitaminDAsDietary = (try? container.decode(Bool.self, forKey: .writesVitaminDAsDietary))
+            ?? fallback.writesVitaminDAsDietary
         notifyMorningLight = (try? container.decode(Bool.self, forKey: .notifyMorningLight))
             ?? fallback.notifyMorningLight
     }

@@ -480,7 +480,9 @@ final class AppModel {
             medFraction: progress.medFraction,
             locationName: session.locationName,
             exposedBodyPercentage: session.exposure(at: session.endDate ?? Date())
-                .exposedBodyPercentage)
+                .exposedBodyPercentage,
+            averageUVIndex: averageUVIndex(from: session.startDate,
+                                           to: session.endDate ?? now))
 
         history.insert(record, at: 0)
         // Trois mois d'historique suffisent largement à voir une tendance.
@@ -499,6 +501,11 @@ final class AppModel {
         store.remove(.activeSession)
         progress = .zero
         rebuildPlan()
+
+        if profile.writesHealthKit {
+            let dietary = profile.writesVitaminDAsDietary
+            Task { await health.write(record, includingDietary: dietary) }
+        }
         notifications.cancelSessionAlerts()
         liveActivity.end()
         startTicking()
@@ -576,6 +583,18 @@ final class AppModel {
             uvIndex: currentConditions?.uvIndex ?? 0,
             stopAt: stopAt,
             limit: limit)
+    }
+
+    /// Indice UV moyen sur un intervalle, tel que le plan du jour le décrit.
+    ///
+    /// Sert à l'échantillon d'exposition écrit dans Santé : celui-ci demande un
+    /// indice, non une dose, et la moyenne sur la durée de la sortie est
+    /// exactement ce que la grandeur signifie.
+    private func averageUVIndex(from start: Date, to end: Date) -> Double? {
+        guard let plan, end > start else { return nil }
+        let inRange = plan.samples.filter { $0.date >= start && $0.date <= end }
+        guard !inRange.isEmpty else { return plan.sample(nearest: start)?.uvIndex }
+        return inRange.reduce(0.0) { $0 + $1.uvIndex } / Double(inRange.count)
     }
 
     /// Fournisseur d'indice UV interpolé, partagé par l'intégrateur et les

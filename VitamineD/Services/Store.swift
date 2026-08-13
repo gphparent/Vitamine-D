@@ -46,6 +46,10 @@ struct SessionRecord: Identifiable, Codable, Equatable, Sendable {
     var medFraction: Double
     var locationName: String
     var exposedBodyPercentage: Double
+    /// Indice UV moyen de la sortie. Facultatif : les enregistrements des
+    /// versions antérieures n'en portent pas, et un champ non optionnel les
+    /// rendrait illisibles.
+    var averageUVIndex: Double?
 
     var duration: TimeInterval { end.timeIntervalSince(start) }
     var minutes: Int { Int((duration / 60).rounded()) }

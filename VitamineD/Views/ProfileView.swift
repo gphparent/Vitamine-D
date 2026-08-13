@@ -133,14 +133,23 @@ struct ProfileView: View {
                 Section {
                     Toggle("Lire les données de santé", isOn: $model.profile.readsHealthKit)
                         .disabled(!model.health.isAvailable)
-                    if model.profile.readsHealthKit {
+                    Toggle("Enregistrer mes sorties dans Santé",
+                           isOn: $model.profile.writesHealthKit)
+                        .disabled(!model.health.isAvailable)
+
+                    if model.profile.readsHealthKit || model.profile.writesHealthKit {
                         Button("Autoriser l'accès") {
                             Task {
-                                await model.health.requestAuthorisation()
+                                await model.health.requestAuthorisation(
+                                    writing: model.profile.writesHealthKit,
+                                    dietary: model.profile.writesVitaminDAsDietary)
                                 await model.health.refresh(on: model.now,
                                                            calendar: model.calendar)
                             }
                         }
+                    }
+
+                    if model.profile.readsHealthKit {
                         LabeledContent("Vitamine D alimentaire aujourd'hui",
                                        value: Format.iu(model.health.dietaryVitaminDIU))
                         LabeledContent("Plein jour mesuré",
@@ -150,17 +159,46 @@ struct ProfileView: View {
                     Text("Santé")
                 } footer: {
                     Text("""
-                    En lecture seule. Rien n'est jamais écrit dans Santé, et c'est \
-                    délibéré : il n'existe aucun type pour la vitamine D fabriquée par \
-                    la peau. Le seul disponible désigne l'apport alimentaire, et y \
-                    verser ce que la peau produit fausserait votre suivi nutritionnel \
-                    avec quelque chose que vous n'avez pas mangé.
+                    En lecture : votre apport alimentaire en vitamine D, pour savoir si \
+                    les suppléments prennent le relais quand le Soleil ne peut plus \
+                    rien, et vos minutes de plein jour, pour repérer les expositions \
+                    que l'application n'a pas comptées.
 
-                    L'application lit deux choses : votre apport alimentaire, pour \
-                    savoir si les suppléments prennent le relais quand le Soleil ne \
-                    peut plus rien, et vos minutes de plein jour, pour repérer les \
-                    expositions qu'elle n'a pas comptées.
+                    En écriture : l'exposition ultraviolette de chaque sortie — un \
+                    indice UV moyen sur une durée, ce qui décrit exactement ce qu'elle \
+                    a été. Le temps passé au grand jour n'est jamais écrit : votre \
+                    montre l'enregistre déjà, et Santé additionne les sources.
                     """)
+                }
+
+                if model.profile.writesHealthKit {
+                    Section {
+                        Toggle("Compter la synthèse comme apport alimentaire",
+                               isOn: $model.profile.writesVitaminDAsDietary)
+                    } footer: {
+                        Text("""
+                        À vous de trancher, et voici l'enjeu. Santé ne connaît qu'une \
+                        vitamine D : celle qu'on avale. Y verser celle que votre peau \
+                        fabrique rend le total juste — c'est la même molécule, et vous \
+                        verriez enfin votre apport réel — mais la provenance fausse : \
+                        le graphique nutritionnel comptera comme un repas ce qui vient \
+                        du Soleil, et toute autre application lisant ce champ fera de \
+                        même.
+
+                        Désactivé, vos sorties restent enregistrées comme exposition \
+                        ultraviolette, sans toucher à la nutrition.
+                        """)
+                    }
+
+                    Section {
+                        Button("Retirer mes données de Santé", role: .destructive) {
+                            Task { await model.health.deleteWrittenSamples(since: .distantPast) }
+                        }
+                    } footer: {
+                        Text("Efface de Santé les échantillons écrits par cette "
+                             + "application, et eux seuls. Ce que d'autres sources y ont "
+                             + "déposé n'est pas touché.")
+                    }
                 }
 
                 Section("Comprendre") {
