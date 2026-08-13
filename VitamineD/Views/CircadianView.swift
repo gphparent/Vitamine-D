@@ -19,7 +19,9 @@ struct CircadianView: View {
             }
             .padding(16)
         }
-        .background(Color(uiColor: .systemGroupedBackground))
+        .background(SkyBackground(
+                solarElevation: model.solarPosition?.elevation ?? -90,
+                cloudCover: model.currentConditions?.cloudCover ?? 0))
         .navigationTitle("Sommeil")
     }
 
@@ -64,7 +66,7 @@ struct CircadianView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
 
-                Divider()
+                GoldRule()
 
                 HStack(spacing: 12) {
                     MetricTile(label: "Dehors",
@@ -179,7 +181,7 @@ struct CircadianView: View {
             Toggle("Suivre la lumière du matin", isOn: $model.profile.tracksCircadianLight)
 
             if model.profile.tracksCircadianLight {
-                Divider()
+                GoldRule()
                 timePicker("Lever habituel", minute: $model.profile.wakeMinuteOfDay)
                 timePicker("Lever visé", minute: $model.profile.targetWakeMinuteOfDay)
 

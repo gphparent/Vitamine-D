@@ -215,6 +215,10 @@ struct ProfileView: View {
                          + "d'un facteur deux à trois entre individus de même phototype.")
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(SkyBackground(
+                solarElevation: model.solarPosition?.elevation ?? -90,
+                cloudCover: model.currentConditions?.cloudCover ?? 0))
             .navigationTitle("Profil")
             .sheet(isPresented: $showsClothing) {
                 ClothingView(exposure: $model.profile.exposure)

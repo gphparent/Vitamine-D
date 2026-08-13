@@ -13,6 +13,8 @@ struct TodayView: View {
                     if model.location == nil {
                         locationPrompt
                     } else {
+                        ScreenTitle(title: "Vitamine D", subtitle: headerSubtitle)
+                            .padding(.bottom, 2)
                         notices
                         statusCard
                         clothingCard
@@ -26,8 +28,11 @@ struct TodayView: View {
                 }
                 .padding(16)
             }
-            .background(Color(uiColor: .systemGroupedBackground))
-            .navigationTitle("Vitamine D")
+            .background(SkyBackground(
+                solarElevation: model.solarPosition?.elevation ?? -90,
+                cloudCover: model.currentConditions?.cloudCover ?? 0))
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // Le lieu reste une pastille flottante dans la barre, et mène
                 // à l'année entière : c'est là que se voit l'hiver vitaminique,
@@ -60,6 +65,12 @@ struct TodayView: View {
                     set: { model.updateSessionExposure($0) }))
             }
         }
+    }
+
+    /// Lieu et date, en capitales incisées sous le titre.
+    private var headerSubtitle: String {
+        let place = model.location?.name ?? "Position inconnue"
+        return "\(place) · \(Format.shortDate(model.now, in: model.calendar.timeZone))"
     }
 
     // MARK: - Sections
@@ -157,12 +168,13 @@ struct TodayView: View {
             // et les tuiles qui suivent disent l'instant présent.
             if let plan = model.plan {
                 OptimalWindowCountdown(plan: plan, now: model.now)
-                Divider()
+                GoldRule()
             }
 
             HStack(alignment: .top, spacing: 18) {
                 UVGauge(uvIndex: model.currentConditions?.uvIndex ?? 0,
-                        clearSkyIndex: model.currentConditions?.uvIndexClearSky ?? 0)
+                        clearSkyIndex: model.currentConditions?.uvIndexClearSky ?? 0,
+                        hasNimbus: true)
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text(statusHeadline)
@@ -194,7 +206,7 @@ struct TodayView: View {
                 }
             }
 
-            Divider()
+            GoldRule()
 
             HStack(spacing: 12) {
                 MetricTile(label: "Synthèse actuelle",
@@ -325,7 +337,8 @@ struct TodayView: View {
             } else {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Quand sortir")
-                        .font(.title3.weight(.semibold))
+                        .font(.system(size: 22, weight: .regular, design: .serif))
+                        .foregroundStyle(Theme.onSky)
                         .padding(.horizontal, 4)
 
                     // Dans l'ordre de la journée, non par mérite : c'est ainsi

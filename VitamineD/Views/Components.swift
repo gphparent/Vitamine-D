@@ -1,9 +1,31 @@
 import SwiftUI
 
+/// Filet d'or, en remplacement du séparateur gris à l'intérieur d'une carte.
+///
+/// L'or s'éteint vers la droite plutôt que de traverser toute la largeur : un
+/// trait plein ferait règle de tableau, un filet qui s'efface fait réglure de
+/// manuscrit.
+struct GoldRule: View {
+    var body: some View {
+        Rectangle()
+            .fill(Theme.goldRule)
+            .frame(height: 1)
+            .accessibilityHidden(true)
+    }
+}
+
 /// Carte générique, fond et coins arrondis cohérents.
+///
+/// La tête de carte est en capitales incisées d'or sur filet, et non en gris
+/// semi-gras. C'est l'un des quatre gestes du registre héraldique : l'or porte
+/// l'inscription, jamais la donnée — laquelle garde ses couleurs
+/// conventionnelles juste en dessous.
 struct Card<Content: View>: View {
     var title: String?
     var systemImage: String?
+    /// Variante sobre, pour les feuilles denses où le registre héraldique
+    /// tomberait mal.
+    var isPlain: Bool = false
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -11,19 +33,73 @@ struct Card<Content: View>: View {
             if let title {
                 Label {
                     Text(title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .font(isPlain ? .subheadline.weight(.semibold) : .caption)
+                        .tracking(isPlain ? 0 : 1.6)
+                        .textCase(isPlain ? nil : .uppercase)
                 } icon: {
                     if let systemImage { Image(systemName: systemImage) }
                 }
                 .labelStyle(.titleAndIcon)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(isPlain ? AnyShapeStyle(.secondary) : AnyShapeStyle(Theme.goldDark))
+
+                if !isPlain { GoldRule() }
             }
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Theme.cardEdge, lineWidth: 1)
+        )
+    }
+}
+
+/// Fond de ciel, choisi par la hauteur du Soleil.
+///
+/// Ce n'est pas une ambiance : la phase suit la grandeur qui décide du
+/// rendement UVB, et deux de ses bornes sont celles des bandes de rendement.
+/// Quand le fond vire au bleu profond, c'est que la synthèse est finie.
+struct SkyBackground: View {
+    let solarElevation: Double
+    var cloudCover: Double = 0
+
+    var body: some View {
+        LinearGradient(colors: Theme.skyStops(solarElevation: solarElevation),
+                       startPoint: .top, endPoint: .bottom)
+            .overlay(Theme.skyVeil(cloudCover: cloudCover))
+            .ignoresSafeArea()
+            .animation(.easeInOut(duration: 0.6), value: solarElevation)
+    }
+}
+
+/// Titre d'écran : nom en capitales incisées, lieu et date en dessous.
+///
+/// La police d'affichage n'entre que là. Le système en fournit une taillée pour
+/// l'écran — le serif d'Apple — ce qui évite d'embarquer une fonte et conserve
+/// la mise à l'échelle dynamique, que toute police livrée avec l'application
+/// perdrait pour les tailles d'accessibilité.
+struct ScreenTitle: View {
+    let title: String
+    var subtitle: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(size: 30, weight: .regular, design: .serif))
+                .foregroundStyle(Theme.onSky)
+            if let subtitle {
+                Text(subtitle)
+                    .font(.caption2)
+                    .tracking(2.2)
+                    .textCase(.uppercase)
+                    .foregroundStyle(Theme.goldLight)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 4)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -62,6 +138,9 @@ struct MetricTile: View {
 struct UVGauge: View {
     let uvIndex: Double
     let clearSkyIndex: Double
+    /// Anneau d'or autour du cadran, comme le nimbe d'une icône. Un seul par
+    /// écran, jamais sur un cadran secondaire.
+    var hasNimbus: Bool = false
 
     var body: some View {
         ZStack {
@@ -92,6 +171,12 @@ struct UVGauge: View {
             }
         }
         .frame(width: 108, height: 108)
+        .padding(hasNimbus ? 5 : 0)
+        .overlay {
+            if hasNimbus {
+                Circle().strokeBorder(Theme.gold, lineWidth: 1)
+            }
+        }
         .accessibilityElement()
         .accessibilityLabel("Indice UV")
         .accessibilityValue(String(format: "%.1f, %@", uvIndex, Theme.uvLabel(uvIndex)))
@@ -180,7 +265,13 @@ struct NoticeBanner: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        // Fond de carte, et non une simple teinte : posé sur un ciel de nuit,
+        // un aplat à 10 % laisserait le texte illisible.
+        .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(tint.opacity(0.45), lineWidth: 1)
+        )
     }
 }
 

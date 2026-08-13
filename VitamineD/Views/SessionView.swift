@@ -20,7 +20,9 @@ struct SessionView: View {
                 }
                 .padding(16)
             }
-            .background(Color(uiColor: .systemGroupedBackground))
+            .background(SkyBackground(
+                solarElevation: model.solarPosition?.elevation ?? -90,
+                cloudCover: model.currentConditions?.cloudCover ?? 0))
             .navigationTitle("Sortie")
             .sheet(isPresented: $showsClothing) {
                 ClothingView(exposure: Binding(
@@ -202,7 +204,7 @@ struct SessionView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
 
-                Divider()
+                GoldRule()
 
                 if model.liveActivity.isRunning {
                     Label("Le décompte est aussi sur l'écran verrouillé",

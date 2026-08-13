@@ -33,7 +33,9 @@ struct YearView: View {
             }
             .padding(16)
         }
-        .background(Color(uiColor: .systemGroupedBackground))
+        .background(SkyBackground(
+                solarElevation: model.solarPosition?.elevation ?? -90,
+                cloudCover: model.currentConditions?.cloudCover ?? 0))
         .navigationTitle(model.location?.name ?? "L'année")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

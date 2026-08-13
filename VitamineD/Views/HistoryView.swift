@@ -25,7 +25,9 @@ struct HistoryView: View {
                 }
                 .padding(16)
             }
-            .background(Color(uiColor: .systemGroupedBackground))
+            .background(SkyBackground(
+                solarElevation: model.solarPosition?.elevation ?? -90,
+                cloudCover: model.currentConditions?.cloudCover ?? 0))
             .navigationTitle("Historique")
         }
     }
@@ -100,9 +102,9 @@ struct HistoryView: View {
                     aheadContent(plan)
                 }
 
-                Divider()
+                GoldRule()
                 reserveContent(plan)
-                Divider()
+                GoldRule()
                 forecastContent(plan)
             }
         }
@@ -180,7 +182,7 @@ struct HistoryView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             if model.profile.readsHealthKit, model.health.dietaryVitaminDIU > 0 {
-                Divider()
+                GoldRule()
                 Text("Santé rapporte en plus "
                      + Format.iu(model.health.dietaryVitaminDIU)
                      + " d'apport alimentaire aujourd'hui. Les deux voies aboutissent "
@@ -361,7 +363,7 @@ struct HistoryView: View {
                     ForEach(model.history.prefix(30)) { record in
                         row(record)
                         if record.id != model.history.prefix(30).last?.id {
-                            Divider().padding(.vertical, 8)
+                            GoldRule().padding(.vertical, 8)
                         }
                     }
                 }

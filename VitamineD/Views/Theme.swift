@@ -54,7 +54,79 @@ enum Theme {
 
     static let vitaminD = Color(red: 0.98, green: 0.68, blue: 0.13)
 
-    static let cardBackground = Color(uiColor: .secondarySystemGroupedBackground)
+    // MARK: - Registre héraldique
+
+    /// Pigments de l'icône, repris tels quels de `Tools/fabriquer-icone.py`.
+    ///
+    /// Ils ne servent qu'au décor — titres, filets, contours de carte. Les
+    /// échelles de données gardent leurs couleurs conventionnelles : un indice
+    /// UV rouge doit rester rouge, quelle que soit la charte.
+    static let gold = Color(red: 226/255, green: 178/255, blue: 74/255)
+    static let goldLight = Color(red: 244/255, green: 214/255, blue: 136/255)
+    static let goldDark = Color(red: 135/255, green: 96/255, blue: 30/255)
+
+    /// Contour de carte : filet d'or à 28 %.
+    static let cardEdge = goldDark.opacity(0.28)
+
+    /// Filet d'or, en remplacement du séparateur gris à l'intérieur des cartes.
+    static var goldRule: LinearGradient {
+        LinearGradient(colors: [goldDark.opacity(0.45), .clear],
+                       startPoint: .leading, endPoint: .trailing)
+    }
+
+    /// Encre posée à nu sur le ciel.
+    ///
+    /// Jamais la couleur de texte ordinaire : le noir tombe à 3,2:1 sur l'azur
+    /// de plein jour, sous le seuil de lisibilité.
+    static let onSky = Color.white
+    static let onSkyDim = Color(red: 241/255, green: 244/255, blue: 252/255).opacity(0.78)
+
+    /// Cartes posées sur le ciel : translucides, jamais opaques.
+    ///
+    /// `systemBackground` plutôt qu'un blanc fixe, pour que le texte ordinaire
+    /// garde son contraste dans les deux apparences du système.
+    static let cardBackground = Color(uiColor: .systemBackground).opacity(0.86)
+
+    // MARK: - Ciel
+
+    /// Les trois arrêts du fond d'écran, choisis par la hauteur du Soleil.
+    ///
+    /// La phase ne dépend jamais de l'heure, toujours de la hauteur : c'est la
+    /// même grandeur qui décide du rendement UVB, et les deux dernières bornes
+    /// — 25° et 45° — sont exactement celles des bandes de rendement. Le fond
+    /// dit donc quelque chose de vrai, et non une ambiance.
+    static func skyStops(solarElevation: Double) -> [Color] {
+        switch solarElevation {
+        case ..<(-12):
+            return [hex(0x060C22), hex(0x0C183C), hex(0x152551)]
+        case ..<0:
+            return [hex(0x101C46), hex(0x2A3E78), hex(0x7A5F7E)]
+        case ..<8:
+            return [hex(0x1E3F80), hex(0x7D6A9A), hex(0xE2B24A)]
+        case ..<UVEngine.vitaminDWinterElevation:
+            return [hex(0x20488F), hex(0x4A76B6), hex(0xC9B48C)]
+        case ..<UVEngine.optimalSynthesisElevation:
+            return [hex(0x1D4795), hex(0x3F74BD), hex(0x9FC0E2)]
+        default:
+            return [hex(0x173F92), hex(0x2E5CA8), hex(0x8FB6DE)]
+        }
+    }
+
+    /// Voile nuageux superposé au ciel, sans en changer la phase.
+    static func skyVeil(cloudCover: Double) -> Color {
+        switch cloudCover {
+        case ..<0.20: return .clear
+        case ..<0.45: return Color(red: 241/255, green: 244/255, blue: 252/255).opacity(0.14)
+        case ..<0.75: return Color(red: 241/255, green: 244/255, blue: 252/255).opacity(0.30)
+        default:      return Color(red: 160/255, green: 170/255, blue: 190/255).opacity(0.62)
+        }
+    }
+
+    private static func hex(_ value: Int) -> Color {
+        Color(red: Double((value >> 16) & 0xFF) / 255,
+              green: Double((value >> 8) & 0xFF) / 255,
+              blue: Double(value & 0xFF) / 255)
+    }
 }
 
 /// Formatage cohérent des heures et durées dans toute l'application.
