@@ -99,10 +99,15 @@ struct YearPlannerTests {
         // Miami, 25,8° N : au solstice d'hiver le Soleil culmine encore à 40°.
         let year = outlook(on: day(2026, 8, 13), latitude: 25.76, longitude: -80.19)
 
+        // `allSatisfy` est `rethrows` : passé un chemin de clé directement à
+        // `#expect`, la macro l'enveloppe dans un contexte où l'appel devient
+        // potentiellement lançant. On évalue donc avant.
+        let everyDayProduces = year.days.allSatisfy(\.producesVitaminD)
+
         #expect(!year.hasWinter)
         #expect(year.winter == nil)
         #expect(year.lowestElevation > UVEngine.vitaminDWinterElevation)
-        #expect(year.days.allSatisfy(\.producesVitaminD))
+        #expect(everyDayProduces)
     }
 
     @Test("Au cercle polaire, l'hiver dure la moitié de l'année")
