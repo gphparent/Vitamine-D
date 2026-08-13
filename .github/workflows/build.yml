@@ -57,12 +57,17 @@ jobs:
   captures:
     name: Captures d'écran
     runs-on: macos-latest
-    # Uniquement sur demande explicite, depuis le bouton « Run workflow ».
-    # Sur un dépôt privé, chaque minute d'exécuteur macOS est décomptée au
-    # décuple du quota mensuel : lancer ce job à chaque poussée consommerait
-    # le forfait en quelques jours, pour des images qui ne changent qu'au
-    # gré des retouches d'interface.
-    if: github.event_name == 'workflow_dispatch'
+    # Uniquement sur demande. Sur un dépôt privé, chaque minute d'exécuteur
+    # macOS est décomptée au décuple du quota mensuel : lancer ce job à chaque
+    # poussée consommerait le forfait en quelques jours, pour des images qui ne
+    # changent qu'au gré des retouches d'interface.
+    #
+    # Le bouton « Run workflow » n'apparaît qu'une fois le workflow présent sur
+    # la branche par défaut. En attendant, un marqueur dans le message de
+    # commit fait le même office.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || contains(github.event.head_commit.message, '[captures]')
     steps:
       - uses: actions/checkout@v4
 
@@ -136,3 +141,54 @@ jobs:
           name: captures-ecran
           path: captures/*
           retention-days: 14
+
+  ipa:
+    name: Paquet installable
+    runs-on: macos-latest
+    # Même logique de coût que les captures : sur demande seulement.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || contains(github.event.head_commit.message, '[ipa]')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compiler pour appareil, sans signature
+        run: |
+          set -o pipefail
+          # Aucune signature ici : c'est AltStore qui signera le paquet avec
+          # l'identifiant Apple de l'utilisateur au moment de l'installation.
+          # L'application ne réclame aucun droit particulier — position et
+          # notifications passent par de simples chaînes d'explication dans
+          # l'Info.plist — donc rien n'exige un compte développeur payant.
+          xcodebuild build \
+            -project VitamineD.xcodeproj \
+            -scheme VitamineD \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Emballer en .ipa
+        run: |
+          set -e
+          APP=$(find DerivedData/Build/Products/Release-iphoneos \
+                     -maxdepth 1 -name 'VitamineD.app' | head -1)
+          test -n "$APP" || { echo "application introuvable"; exit 1; }
+          echo "Application : $APP"
+
+          # Un .ipa n'est rien d'autre qu'une archive zip contenant un dossier
+          # Payload, lui-même contenant le paquet .app.
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry VitamineD.ipa Payload
+          ls -lh VitamineD.ipa
+
+      - name: Publier le paquet
+        uses: actions/upload-artifact@v4
+        with:
+          name: VitamineD-ipa
+          path: VitamineD.ipa
+          retention-days: 30
