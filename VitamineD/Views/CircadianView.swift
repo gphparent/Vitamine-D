@@ -20,8 +20,7 @@ struct CircadianView: View {
             .padding(16)
         }
         .background(Color(uiColor: .systemGroupedBackground))
-        .navigationTitle("Lumière du matin")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle("Sommeil")
     }
 
     // MARK: - Sections

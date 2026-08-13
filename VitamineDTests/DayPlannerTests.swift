@@ -308,6 +308,45 @@ struct DayPlannerTests {
         #expect(optimal.interval.contains(summer.solarNoon))
     }
 
+    @Test("Le plan expose la bande optimale, et elle correspond aux bandes calculées")
+    func planCarriesTheOptimalBand() throws {
+        let summer = plan(on: day(2026, 6, 21))
+        let band = try #require(summer.optimalBand)
+        let computed = try #require(
+            DayPlanner.yieldBands(from: summer.samples).first { $0.band == .optimal })
+
+        #expect(band == computed.interval)
+        #expect(band.contains(summer.solarNoon))
+
+        // Le décompte doit être stable d'une prévision à l'autre : la bande ne
+        // dépend que de la hauteur du Soleil, jamais des nuages.
+        let overcast = plan(on: day(2026, 6, 21), cloudCover: 1.0)
+        #expect(overcast.optimalBand == band)
+    }
+
+    @Test("Aucune bande optimale en hiver vitaminique")
+    func winterHasNoOptimalBand() {
+        let winter = plan(on: day(2026, 12, 21))
+        #expect(winter.optimalBand == nil)
+        #expect(winter.isVitaminDWinter)
+    }
+
+    @Test("L'ordre chronologique conserve les mêmes créneaux que le classement")
+    func chronologicalOrderKeepsEveryRecommendation() throws {
+        let summer = plan(on: day(2026, 6, 21))
+        let chronological = summer.chronologicalRecommendations
+
+        #expect(chronological.count == summer.recommendations.count)
+        #expect(Set(chronological.map(\.id)) == Set(summer.recommendations.map(\.id)))
+        #expect(chronological.map(\.start) == chronological.map(\.start).sorted())
+
+        // Le meilleur créneau reste identifiable : l'interface le signale par sa
+        // teinte, puisque sa position ne le dit plus.
+        let best = try #require(summer.bestRecommendation)
+        #expect(chronological.contains { $0.id == best.id })
+        #expect(summer.recommendations.allSatisfy { $0.score <= best.score })
+    }
+
     // MARK: - Temps avant rougeur
 
     @Test("Le temps avant rougeur tient compte de la montée du Soleil")

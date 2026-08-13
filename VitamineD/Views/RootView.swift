@@ -15,12 +15,19 @@ struct RootView: View {
                 })
     }
 
+    /// Deux raisons de sortir, deux mécanismes sans rapport, deux onglets.
+    ///
+    /// Les mêler sur un même écran, comme le faisait la version précédente,
+    /// laissait croire que la lumière du matin sert à la vitamine D. C'est le
+    /// contraire : à cette heure-là le Soleil est trop bas pour le moindre UVB,
+    /// et c'est justement l'horloge interne qu'elle règle.
     enum Tab: Hashable {
-        case today, session, history, profile
+        case today, session, sleep, history, profile
 
         init(launchArgument: String?) {
             switch launchArgument {
             case "session":  self = .session
+            case "sleep":    self = .sleep
             case "history":  self = .history
             case "profile":  self = .profile
             default:         self = .today
@@ -31,13 +38,17 @@ struct RootView: View {
     var body: some View {
         TabView(selection: $selection) {
             TodayView()
-                .tabItem { Label("Aujourd'hui", systemImage: "sun.max") }
+                .tabItem { Label("Vitamine D", systemImage: "sun.max") }
                 .tag(Tab.today)
 
             SessionView()
                 .tabItem { Label("Sortie", systemImage: "figure.walk") }
                 .tag(Tab.session)
                 .badge(model.isSessionActive ? Text("•") : nil)
+
+            NavigationStack { CircadianView() }
+                .tabItem { Label("Sommeil", systemImage: "moon.zzz") }
+                .tag(Tab.sleep)
 
             HistoryView()
                 .tabItem { Label("Historique", systemImage: "chart.bar") }

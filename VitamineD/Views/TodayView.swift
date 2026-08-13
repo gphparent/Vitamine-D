@@ -12,12 +12,14 @@ struct TodayView: View {
                     if model.location == nil {
                         locationPrompt
                     } else {
+                        if let plan = model.plan {
+                            OptimalWindowCountdown(plan: plan, now: model.now)
+                        }
                         notices
                         statusCard
                         if let plan = model.plan {
                             recommendations(plan)
                             Card { DayChart(plan: plan, now: model.now) }
-                            morningLightCard
                             dayFacts(plan)
                         }
                         explanation
@@ -26,7 +28,7 @@ struct TodayView: View {
                 .padding(16)
             }
             .background(Color(uiColor: .systemGroupedBackground))
-            .navigationTitle("Aujourd'hui")
+            .navigationTitle("Vitamine D")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
@@ -185,58 +187,16 @@ struct TodayView: View {
                         .font(.title3.weight(.semibold))
                         .padding(.horizontal, 4)
 
-                    ForEach(Array(plan.recommendations.enumerated()), id: \.element.id) { index, item in
+                    // Dans l'ordre de la journée, non par mérite : c'est ainsi
+                    // qu'on décide entre ce matin et après le dîner. Le meilleur
+                    // créneau reste signalé par sa teinte et son étiquette.
+                    ForEach(plan.chronologicalRecommendations) { item in
                         RecommendationCard(recommendation: item,
                                            timeZone: plan.timeZone,
-                                           isPrimary: index == 0)
+                                           isPrimary: item.id == plan.bestRecommendation?.id)
                     }
                 }
             }
-        }
-    }
-
-    /// Renvoi vers le calage circadien.
-    ///
-    /// Volontairement distinct des créneaux vitamine D, et placé après eux :
-    /// c'est une autre raison de sortir, à un autre moment, par un mécanisme
-    /// sans rapport. Les mêler embrouillerait les deux.
-    @ViewBuilder
-    private var morningLightCard: some View {
-        if let light = model.morningLight {
-            NavigationLink {
-                CircadianView()
-            } label: {
-                Card(title: "Lumière du matin", systemImage: "sunrise") {
-                    HStack(alignment: .firstTextBaseline) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(Format.interval(light.window, in: model.plan?.timeZone))
-                                .font(.title3.weight(.semibold).monospacedDigit())
-                                .foregroundStyle(.primary)
-                            if let minutes = light.quality.recommendedMinutes {
-                                Text("\(minutes.lowerBound) à \(minutes.upperBound) min dehors "
-                                     + "pour caler votre horloge")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            } else {
-                                Text(light.quality.advice)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.footnote)
-                            .foregroundStyle(.tertiary)
-                    }
-
-                    Text("Sans rapport avec la vitamine D — le Soleil est alors "
-                         + "trop bas pour les UVB. C'est l'horloge interne que "
-                         + "cette lumière-là règle.")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            .buttonStyle(.plain)
         }
     }
 
@@ -249,8 +209,10 @@ struct TodayView: View {
                 factRow("Hauteur maximale", Format.degrees(plan.peakElevation))
                 factRow("Indice UV maximal", String(format: "%.1f", plan.peakUVIndex))
 
-                if let optimal = plan.windows.filter({ $0.quality == .optimal }).first {
-                    factRow("Fenêtre optimale", Format.interval(optimal.interval, in: plan.timeZone))
+                // La même définition que le décompte en haut de l'écran : deux
+                // chiffres qui se contrediraient seraient pires qu'un seul.
+                if let optimal = plan.optimalBand {
+                    factRow("Fenêtre optimale", Format.interval(optimal, in: plan.timeZone))
                 }
                 if let useful = plan.windows.first, plan.windows.contains(where: { $0.quality != .optimal }) {
                     factRow("Synthèse possible dès", Format.time(useful.interval.start, in: plan.timeZone))
@@ -295,8 +257,10 @@ struct TodayView: View {
         if model.currentRates.vitaminDIUPerMinute < 0.5 {
             return "Soleil trop bas pour la vitamine D"
         }
+        // Le décompte en tête de l'écran annonce déjà la fenêtre ; inutile de le
+        // répéter ici. On dit plutôt ce que vaut l'instant présent.
         if position.elevation >= UVEngine.optimalSynthesisElevation {
-            return "Fenêtre optimale ouverte"
+            return "Rendement optimal"
         }
         return "Synthèse possible, rendement réduit"
     }

@@ -106,8 +106,24 @@ struct DayPlan: Equatable, Sendable {
     let isVitaminDWinter: Bool
     /// L'objectif quotidien dépasse-t-il ce que la tenue permet de synthétiser ?
     let goalExceedsCeiling: Bool
+    /// Plage où la règle de l'ombre est satisfaite : le Soleil dépasse 45° et le
+    /// rendement est à son meilleur. `nil` s'il ne monte jamais si haut.
+    ///
+    /// Définie sur la seule hauteur du Soleil, donc insensible aux nuages : elle
+    /// ne bouge pas d'une prévision à l'autre, ce qui est la moindre des choses
+    /// pour un décompte.
+    let optimalBand: DateInterval?
 
     var bestRecommendation: SessionRecommendation? { recommendations.first }
+
+    /// Les créneaux dans l'ordre où ils se présentent, et non par mérite.
+    ///
+    /// Une journée se lit de gauche à droite : c'est ainsi qu'on décide si l'on
+    /// sort ce matin ou après le dîner. Le classement reste accessible par
+    /// `bestRecommendation`, et l'interface le signale.
+    var chronologicalRecommendations: [SessionRecommendation] {
+        recommendations.sorted { $0.start < $1.start }
+    }
 
     func sample(nearest date: Date) -> TimelineSample? {
         samples.min { abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date)) }
@@ -201,7 +217,8 @@ enum DayPlanner {
             peakElevation: peakElevation,
             peakUVIndex: peakUV,
             isVitaminDWinter: peakElevation < UVEngine.vitaminDWinterElevation,
-            goalExceedsCeiling: profile.dailyGoalIU > ceiling
+            goalExceedsCeiling: profile.dailyGoalIU > ceiling,
+            optimalBand: yieldBands(from: samples).first { $0.band == .optimal }?.interval
         )
     }
 

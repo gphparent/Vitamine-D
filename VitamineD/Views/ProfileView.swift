@@ -127,10 +127,6 @@ struct ProfileView: View {
                     }
                 }
 
-                Section("Lumière et sommeil") {
-                    NavigationLink("Lumière du matin") { CircadianView() }
-                }
-
                 Section("Comprendre") {
                     NavigationLink("À quoi sert la vitamine D") { VitaminDPrimerView() }
                     NavigationLink("Glossaire") { GlossaryListView() }
