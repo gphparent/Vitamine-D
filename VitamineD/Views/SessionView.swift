@@ -196,6 +196,28 @@ struct SessionView: View {
                 """)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+
+                Divider()
+
+                if model.liveActivity.isRunning {
+                    Label("Le décompte est aussi sur l'écran verrouillé",
+                          systemImage: "lock.iphone")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.vitaminD)
+                    Text("Inutile de déverrouiller : l'heure à laquelle rentrer y "
+                         + "défile toute seule, et se retrouve dans l'île dynamique "
+                         + "quand vous êtes dans une autre application.")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                } else if !model.liveActivity.isAvailable {
+                    Label("Activités en direct désactivées", systemImage: "lock.slash")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Text("Le décompte pourrait rester affiché sur l'écran verrouillé. "
+                         + "Réglages ▸ Vitamine D ▸ Activités en direct.")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
             }
         }
     }

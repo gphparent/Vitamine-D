@@ -6,14 +6,22 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		8000AA0000000000000001 /* VitamineDWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 3002AA0000000000000001 /* VitamineDWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		3000AA0000000000000001 /* VitamineD.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VitamineD.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3001AA0000000000000001 /* VitamineDTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VitamineDTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		3002AA0000000000000001 /* VitamineDWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = VitamineDWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		3003AA0000000000000001 /* VitamineDWidgets-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "VitamineDWidgets-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		2100AA0000000000000001 /* VitamineD */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = VitamineD; sourceTree = "<group>"; };
 		2101AA0000000000000001 /* VitamineDTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = VitamineDTests; sourceTree = "<group>"; };
+		2102AA0000000000000001 /* VitamineDWidgets */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = VitamineDWidgets; sourceTree = "<group>"; };
+		2103AA0000000000000001 /* VitamineDShared */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = VitamineDShared; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -31,13 +39,37 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5021AA0000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		5003AA0000000000000001 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				8000AA0000000000000001 /* VitamineDWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXGroup section */
 		2000AA0000000000000001 = {
 			isa = PBXGroup;
 			children = (
 				2100AA0000000000000001 /* VitamineD */,
+				2103AA0000000000000001 /* VitamineDShared */,
+				2102AA0000000000000001 /* VitamineDWidgets */,
+				3003AA0000000000000001 /* VitamineDWidgets-Info.plist */,
 				2101AA0000000000000001 /* VitamineDTests */,
 				2001AA0000000000000001 /* Products */,
 			);
@@ -48,6 +80,7 @@
 			children = (
 				3000AA0000000000000001 /* VitamineD.app */,
 				3001AA0000000000000001 /* VitamineDTests.xctest */,
+				3002AA0000000000000001 /* VitamineDWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -62,13 +95,16 @@
 				5000AA0000000000000001 /* Sources */,
 				5001AA0000000000000001 /* Frameworks */,
 				5002AA0000000000000001 /* Resources */,
+				5003AA0000000000000001 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				7002AA0000000000000001 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				2100AA0000000000000001 /* VitamineD */,
+				2103AA0000000000000001 /* VitamineDShared */,
 			);
 			name = VitamineD;
 			packageProductDependencies = (
@@ -100,6 +136,29 @@
 			productReference = 3001AA0000000000000001 /* VitamineDTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		4002AA0000000000000001 /* VitamineDWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6030AA0000000000000001 /* Build configuration list for PBXNativeTarget "VitamineDWidgets" */;
+			buildPhases = (
+				5020AA0000000000000001 /* Sources */,
+				5021AA0000000000000001 /* Frameworks */,
+				5022AA0000000000000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				2102AA0000000000000001 /* VitamineDWidgets */,
+				2103AA0000000000000001 /* VitamineDShared */,
+			);
+			name = VitamineDWidgets;
+			packageProductDependencies = (
+			);
+			productName = VitamineDWidgets;
+			productReference = 3002AA0000000000000001 /* VitamineDWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -116,6 +175,9 @@
 					4001AA0000000000000001 = {
 						CreatedOnToolsVersion = 16.0;
 						TestTargetID = 4000AA0000000000000001;
+					};
+					4002AA0000000000000001 = {
+						CreatedOnToolsVersion = 16.0;
 					};
 				};
 			};
@@ -135,6 +197,7 @@
 			projectRoot = "";
 			targets = (
 				4000AA0000000000000001 /* VitamineD */,
+				4002AA0000000000000001 /* VitamineDWidgets */,
 				4001AA0000000000000001 /* VitamineDTests */,
 			);
 		};
@@ -149,6 +212,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		5012AA0000000000000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5022AA0000000000000001 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -172,6 +242,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5020AA0000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -179,6 +256,11 @@
 			isa = PBXTargetDependency;
 			target = 4000AA0000000000000001 /* VitamineD */;
 			targetProxy = 7001AA0000000000000001 /* PBXContainerItemProxy */;
+		};
+		7002AA0000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4002AA0000000000000001 /* VitamineDWidgets */;
+			targetProxy = 7003AA0000000000000001 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -189,6 +271,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 4000AA0000000000000001;
 			remoteInfo = VitamineD;
+		};
+		7003AA0000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1000AA0000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4002AA0000000000000001;
+			remoteInfo = VitamineDWidgets;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -262,6 +351,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Vitamine D";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Votre position sert à calculer la hauteur du Soleil et l'indice UV à l'endroit exact où vous êtes. Elle ne quitte jamais l'appareil, sauf sous forme de coordonnées arrondies envoyées au service météo.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -294,6 +384,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Vitamine D";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Votre position sert à calculer la hauteur du Soleil et l'indice UV à l'endroit exact où vous êtes. Elle ne quitte jamais l'appareil, sauf sous forme de coordonnées arrondies envoyées au service météo.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -348,6 +439,54 @@
 			};
 			name = Release;
 		};
+		6031AA0000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "VitamineDWidgets-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Vitamine D";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ca.gphparent.VitamineD.Widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = targeted;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		6032AA0000000000000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "VitamineDWidgets-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Vitamine D";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ca.gphparent.VitamineD.Widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = targeted;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -365,6 +504,15 @@
 			buildConfigurations = (
 				6011AA0000000000000001 /* Debug */,
 				6012AA0000000000000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		6030AA0000000000000001 /* Build configuration list for PBXNativeTarget "VitamineDWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6031AA0000000000000001 /* Debug */,
+				6032AA0000000000000001 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

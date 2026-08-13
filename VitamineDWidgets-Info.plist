@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Déclaration de l'extension WidgetKit.
+
+  Ce fichier vit à la racine du projet, et non dans le dossier VitamineDWidgets,
+  et ce n'est pas un caprice de rangement : ce dossier est un groupe synchronisé
+  avec le système de fichiers, dont Xcode verse tout le contenu dans la cible.
+  Un Info.plist qui s'y trouverait serait à la fois la déclaration du paquet et
+  une ressource à copier dedans — deux règles de production pour un même
+  fichier, ce que le moteur de compilation refuse.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.widgetkit-extension</string>
+	</dict>
+</dict>
+</plist>

@@ -37,6 +37,7 @@ final class AppModel {
 
     let locationService = LocationService()
     let notifications = NotificationService()
+    let liveActivity = LiveActivityService()
 
     // MARK: - Dépendances
 
@@ -184,6 +185,9 @@ final class AppModel {
     // MARK: - Cycle de vie
 
     func start() async {
+        // Une activité peut avoir survécu à la fermeture de l'application :
+        // on la reprend si la sortie court toujours, on la congédie sinon.
+        liveActivity.adopt(sessionIsActive: isSessionActive)
         startTicking()
         locationService.refresh()
         await notifications.refreshAuthorisationStatus()
@@ -320,6 +324,11 @@ final class AppModel {
         updateProgress()
         startTicking()
 
+        liveActivity.start(locationName: session.locationName,
+                           exposedBodyPercentage: profile.exposure.exposedBodyPercentage,
+                           startedAt: session.startDate,
+                           state: liveActivityState(for: session))
+
         Task {
             await notifications.scheduleSessionAlerts(
                 session: session,
@@ -336,6 +345,10 @@ final class AppModel {
         activeSession = session
         store.save(session, for: .activeSession)
         updateProgress()
+
+        // Changement voulu par l'utilisateur : il doit se voir tout de suite
+        // sur l'écran verrouillé, sans attendre le prochain créneau.
+        liveActivity.update(liveActivityState(for: session), force: true)
 
         // Les alertes déjà déposées reposaient sur l'ancienne tenue : elles ne
         // valent plus rien. On les remplace.
@@ -372,6 +385,7 @@ final class AppModel {
         store.remove(.activeSession)
         progress = .zero
         notifications.cancelSessionAlerts()
+        liveActivity.end()
         startTicking()
         return record
     }
@@ -381,6 +395,58 @@ final class AppModel {
         progress = SessionIntegrator.progress(
             for: session, at: now, environment: environment,
             uvIndexAt: uvIndexProvider())
+
+        // Le garde évite de resimuler la sortie à chaque battement d'horloge
+        // pour un état qui serait aussitôt jeté.
+        if liveActivity.isDue {
+            liveActivity.update(liveActivityState(for: session))
+        }
+    }
+
+    /// État à afficher sur l'écran verrouillé et dans l'île dynamique.
+    ///
+    /// L'heure d'arrêt est projetée en poursuivant la sortie dans les
+    /// conditions prévues — course du Soleil comprise — et l'on retient celle
+    /// des deux échéances qui vient en premier. C'est elle que le système
+    /// décomptera tout seul, sans que l'application soit réveillée.
+    private func liveActivityState(for session: ExposureSession)
+    -> SunSessionAttributes.ContentState {
+
+        let provider = uvIndexProvider()
+        let burnLimit = profile.burnAlertFraction
+        let goal = profile.dailyGoalIU
+
+        let burnAt = SessionIntegrator.projectedDate(
+            for: session, from: now, environment: environment,
+            uvIndexAt: provider, reaching: { $0.medFraction >= burnLimit })
+        let goalAt = SessionIntegrator.projectedDate(
+            for: session, from: now, environment: environment,
+            uvIndexAt: provider, reaching: { $0.vitaminDIU >= goal })
+
+        var stopAt: Date?
+        var limit = SunSessionAttributes.ContentState.Limit.none
+        switch (burnAt, goalAt) {
+        case let (burn?, goalDate?):
+            stopAt = min(burn, goalDate)
+            limit = burn <= goalDate ? .burn : .goal
+        case let (burn?, nil):
+            stopAt = burn
+            limit = .burn
+        case let (nil, goalDate?):
+            stopAt = goalDate
+            limit = .goal
+        case (nil, nil):
+            break
+        }
+
+        return SunSessionAttributes.ContentState(
+            vitaminDIU: progress.vitaminDIU,
+            goalIU: goal,
+            medFraction: progress.medFraction,
+            burnLimit: burnLimit,
+            uvIndex: currentConditions?.uvIndex ?? 0,
+            stopAt: stopAt,
+            limit: limit)
     }
 
     /// Fournisseur d'indice UV interpolé, partagé par l'intégrateur et les
