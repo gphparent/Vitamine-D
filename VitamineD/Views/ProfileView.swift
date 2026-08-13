@@ -130,6 +130,39 @@ struct ProfileView: View {
                     }
                 }
 
+                Section {
+                    Toggle("Lire les données de santé", isOn: $model.profile.readsHealthKit)
+                        .disabled(!model.health.isAvailable)
+                    if model.profile.readsHealthKit {
+                        Button("Autoriser l'accès") {
+                            Task {
+                                await model.health.requestAuthorisation()
+                                await model.health.refresh(on: model.now,
+                                                           calendar: model.calendar)
+                            }
+                        }
+                        LabeledContent("Vitamine D alimentaire aujourd'hui",
+                                       value: Format.iu(model.health.dietaryVitaminDIU))
+                        LabeledContent("Plein jour mesuré",
+                                       value: "\(Int(model.health.daylightMinutes.rounded())) min")
+                    }
+                } header: {
+                    Text("Santé")
+                } footer: {
+                    Text("""
+                    En lecture seule. Rien n'est jamais écrit dans Santé, et c'est \
+                    délibéré : il n'existe aucun type pour la vitamine D fabriquée par \
+                    la peau. Le seul disponible désigne l'apport alimentaire, et y \
+                    verser ce que la peau produit fausserait votre suivi nutritionnel \
+                    avec quelque chose que vous n'avez pas mangé.
+
+                    L'application lit deux choses : votre apport alimentaire, pour \
+                    savoir si les suppléments prennent le relais quand le Soleil ne \
+                    peut plus rien, et vos minutes de plein jour, pour repérer les \
+                    expositions qu'elle n'a pas comptées.
+                    """)
+                }
+
                 Section("Comprendre") {
                     Button("Revoir la présentation") { showsOnboarding = true }
                     NavigationLink("À quoi sert la vitamine D") { VitaminDPrimerView() }

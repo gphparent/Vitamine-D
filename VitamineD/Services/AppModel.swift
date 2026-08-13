@@ -41,6 +41,7 @@ final class AppModel {
     let locationService = LocationService()
     let notifications = NotificationService()
     let liveActivity = LiveActivityService()
+    let health = HealthKitService()
 
     // MARK: - Dépendances
 
@@ -220,6 +221,30 @@ final class AppModel {
         carriedIUToday + (activeSession != nil ? progress.vitaminDIU : 0)
     }
 
+    /// Vitamine D du jour, celle de l'assiette comprise quand elle est connue.
+    ///
+    /// Les deux voies aboutissent à la même molécule : les additionner est
+    /// légitime, et c'est même la seule façon de juger d'une journée d'hiver,
+    /// où la peau ne produit rien du tout.
+    var todayTotalWithDietIU: Double {
+        todayTotalIU + (profile.readsHealthKit ? health.dietaryVitaminDIU : 0)
+    }
+
+    /// Minutes de plein jour mesurées par l'appareil que l'application n'a pas
+    /// vues passer.
+    ///
+    /// L'écart n'est pas anodin : c'est du capital cutané dépensé hors de ses
+    /// comptes. On ne le convertit pas en dose — l'appareil ne dit ni la tenue
+    /// ni l'ombre — mais on le signale.
+    var untrackedDaylightMinutes: Double {
+        guard profile.readsHealthKit else { return 0 }
+        let recorded = history
+            .filter { calendar.isDate($0.start, inSameDayAs: now) }
+            .reduce(0.0) { $0 + $1.duration / 60 }
+            + (activeSession != nil ? progress.elapsed / 60 : 0)
+        return max(0, health.daylightMinutes - recorded)
+    }
+
     /// Capital cutané dépensé aujourd'hui, sortie en cours comprise.
     var todayTotalMEDFraction: Double {
         carriedMEDToday + (activeSession != nil ? progress.medFraction : 0)
@@ -239,6 +264,9 @@ final class AppModel {
     // MARK: - Cycle de vie
 
     func start() async {
+        if profile.readsHealthKit {
+            await health.refresh(on: now, calendar: calendar)
+        }
         // Une activité peut avoir survécu à la fermeture de l'application :
         // on la reprend si la sortie court toujours, on la congédie sinon.
         liveActivity.adopt(sessionIsActive: isSessionActive)
@@ -284,6 +312,10 @@ final class AppModel {
         guard let location else { return }
         isRefreshing = true
         defer { isRefreshing = false }
+
+        if profile.readsHealthKit {
+            await health.refresh(on: now, calendar: calendar)
+        }
 
         do {
             snapshot = try await weatherService.snapshot(

@@ -34,8 +34,10 @@ struct HistoryView: View {
         Card {
             HStack(spacing: 12) {
                 MetricTile(label: "Aujourd'hui",
-                           value: Format.iu(model.todayTotalIU),
-                           detail: "objectif \(Int(model.profile.dailyGoalIU)) UI",
+                           value: Format.iu(model.todayTotalWithDietIU),
+                           detail: model.todayTotalWithDietIU > model.todayTotalIU
+                               ? "peau et alimentation"
+                               : "objectif \(Int(model.profile.dailyGoalIU)) UI",
                            tint: Theme.vitaminD)
                 MetricTile(label: "7 derniers jours",
                            value: Format.iu(model.history.totalIU(lastDays: 7, from: model.now)))
@@ -176,6 +178,18 @@ struct HistoryView: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+
+            if model.profile.readsHealthKit, model.health.dietaryVitaminDIU > 0 {
+                Divider()
+                Text("Santé rapporte en plus "
+                     + Format.iu(model.health.dietaryVitaminDIU)
+                     + " d'apport alimentaire aujourd'hui. Les deux voies aboutissent "
+                     + "à la même molécule, et c'est celle-là qui prendra le relais "
+                     + "quand la courbe ci-dessus touchera le fond.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 

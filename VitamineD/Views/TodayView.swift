@@ -127,6 +127,20 @@ struct TodayView: View {
                     + "nettement moins de vitamine D.")
         }
 
+        // L'appareil a vu du plein jour que l'application n'a pas compté : c'est
+        // du capital cutané dépensé hors de ses registres.
+        if model.untrackedDaylightMinutes >= 20 {
+            NoticeBanner(
+                kind: .info,
+                title: "Du soleil non comptabilisé",
+                message: "Votre appareil a mesuré "
+                    + "\(Int(model.untrackedDaylightMinutes.rounded())) minutes de plein "
+                    + "jour que l'application n'a pas enregistrées. Le capital cutané "
+                    + "affiché est donc sous-estimé. Ces minutes ne sont pas converties "
+                    + "en dose : l'appareil ne sait ni votre tenue, ni si vous étiez à "
+                    + "l'ombre.")
+        }
+
         if model.snapshot?.isModelled == true {
             NoticeBanner(
                 kind: .info,

@@ -32,6 +32,14 @@ struct UserProfile: Codable, Equatable, Sendable {
     // MARK: - Lumière et horloge interne
 
     /// Suivre aussi la lumière du matin, pour le calage circadien.
+    /// L'application peut-elle lire les données de santé de l'appareil ?
+    ///
+    /// Lecture seule, et rien n'y est jamais écrit : il n'existe aucun type
+    /// HealthKit pour la synthèse cutanée, et verser ce que la peau fabrique
+    /// dans la vitamine D « alimentaire » fausserait le suivi nutritionnel de
+    /// l'utilisateur avec quelque chose qu'il n'a pas mangé.
+    var readsHealthKit: Bool
+
     var tracksCircadianLight: Bool
     /// Heure de lever habituelle, en minutes depuis minuit.
     var wakeMinuteOfDay: Int
@@ -53,6 +61,7 @@ struct UserProfile: Codable, Equatable, Sendable {
         notifyDailyPlan: true,
         dailyPlanMinuteOfDay: 8 * 60,
         hasCompletedOnboarding: false,
+        readsHealthKit: false,
         tracksCircadianLight: true,
         wakeMinuteOfDay: 7 * 60,
         targetWakeMinuteOfDay: 7 * 60,
@@ -116,6 +125,8 @@ struct UserProfile: Codable, Equatable, Sendable {
         targetWakeMinuteOfDay = (try? container.decode(Int.self, forKey: .targetWakeMinuteOfDay))
             ?? wakeMinuteOfDay
         sleepHours = (try? container.decode(Double.self, forKey: .sleepHours)) ?? fallback.sleepHours
+        readsHealthKit = (try? container.decode(Bool.self, forKey: .readsHealthKit))
+            ?? fallback.readsHealthKit
         notifyMorningLight = (try? container.decode(Bool.self, forKey: .notifyMorningLight))
             ?? fallback.notifyMorningLight
     }
