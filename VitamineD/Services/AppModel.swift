@@ -28,6 +28,9 @@ final class AppModel {
     private(set) var activeSession: ExposureSession?
     private(set) var progress: SessionProgress = .zero
     private(set) var history: [SessionRecord] = []
+    /// Ce que la peau garde de ses expositions précédentes. Une sortie qui suit
+    /// de peu la précédente ne repart pas du bas de la courbe de saturation.
+    private(set) var photosaturation: Photosaturation = .empty
     private(set) var lastError: String?
     private(set) var isRefreshing = false
 
@@ -59,6 +62,7 @@ final class AppModel {
         self.profile = store.load(UserProfile.self, for: .profile) ?? .default
         self.history = store.load([SessionRecord].self, for: .history) ?? []
         self.activeSession = store.load(ExposureSession.self, for: .activeSession)
+        self.photosaturation = store.load(Photosaturation.self, for: .photosaturation) ?? .empty
 
         // Une position imposée sur la ligne de commande prime sur tout le
         // reste : c'est ce qui permet à l'intégration continue de produire des
@@ -166,6 +170,29 @@ final class AppModel {
     var morningLightIsAhead: Bool {
         guard let light = morningLight else { return false }
         return light.window.end > now
+    }
+
+    /// Charge photochimique restante à l'instant présent.
+    var carriedLoad: Double { photosaturation.load(at: now) }
+
+    /// Charge que la peau portait au moment où la sortie en cours a commencé.
+    ///
+    /// C'est cette valeur-là, et non celle de l'instant présent, qu'attend
+    /// l'intégrateur : la dose de la sortie en cours n'a pas encore été versée
+    /// dans la charge — elle ne l'est qu'à la fin — et l'intégrateur l'ajoute
+    /// lui-même en repartant du début. Lui donner la charge d'aujourd'hui
+    /// compterait la sortie deux fois.
+    private var carriedAtSessionStart: Double {
+        guard let session = activeSession else { return carriedLoad }
+        return photosaturation.load(at: session.startDate)
+    }
+
+    /// Rendement que rapporterait la première minute d'une nouvelle sortie.
+    ///
+    /// Vaut 1 sur une peau reposée, et d'autant moins que la dernière sortie
+    /// est récente et généreuse.
+    var restingMarginalYield: Double {
+        photosaturation.marginalYield(at: now, profile: profile)
     }
 
     // MARK: - Hiver
@@ -284,6 +311,7 @@ final class AppModel {
             timeZone: zone,
             profile: profile,
             environment: environment,
+            carried: carriedLoad,
             forecast: forecast)
 
         // L'année ne dépend ni de la météo ni du profil : on ne la recalcule que
@@ -309,6 +337,7 @@ final class AppModel {
             timeZone: snapshot?.timeZone ?? .current,
             profile: profile,
             environment: environment,
+            carried: carriedLoad,
             forecast: snapshot?.hourly ?? [])
     }
 
@@ -381,9 +410,18 @@ final class AppModel {
         history = Array(history.prefix(200))
         store.save(history, for: .history)
 
+        // La dose brute de la sortie rejoint la charge de la peau : la
+        // prochaine sortie démarrera donc plus haut sur la courbe de
+        // saturation, et non à 100 % de rendement comme si rien ne s'était
+        // passé.
+        photosaturation.deposit(rawIU: progress.rawVitaminDIU,
+                                at: session.endDate ?? now)
+        store.save(photosaturation, for: .photosaturation)
+
         activeSession = nil
         store.remove(.activeSession)
         progress = .zero
+        rebuildPlan()
         notifications.cancelSessionAlerts()
         liveActivity.end()
         startTicking()
@@ -394,6 +432,7 @@ final class AppModel {
         guard let session = activeSession else { progress = .zero; return }
         progress = SessionIntegrator.progress(
             for: session, at: now, environment: environment,
+            carried: carriedAtSessionStart,
             uvIndexAt: uvIndexProvider())
 
         // Le garde évite de resimuler la sortie à chaque battement d'horloge
@@ -416,12 +455,15 @@ final class AppModel {
         let burnLimit = profile.burnAlertFraction
         let goal = profile.dailyGoalIU
 
+        let carried = carriedAtSessionStart
         let burnAt = SessionIntegrator.projectedDate(
             for: session, from: now, environment: environment,
-            uvIndexAt: provider, reaching: { $0.medFraction >= burnLimit })
+            carried: carried, uvIndexAt: provider,
+            reaching: { $0.medFraction >= burnLimit })
         let goalAt = SessionIntegrator.projectedDate(
             for: session, from: now, environment: environment,
-            uvIndexAt: provider, reaching: { $0.vitaminDIU >= goal })
+            carried: carried, uvIndexAt: provider,
+            reaching: { $0.vitaminDIU >= goal })
 
         var stopAt: Date?
         var limit = SunSessionAttributes.ContentState.Limit.none

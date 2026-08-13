@@ -113,6 +113,20 @@ struct TodayView: View {
                     + "par sortie. Découvrez davantage de peau, ou revoyez l'objectif à la baisse.")
         }
 
+        // Sans cette explication, un rendement à 60 % sur une peau qui n'a rien
+        // fait depuis une heure passe pour un défaut d'affichage.
+        if model.restingMarginalYield < 0.85, model.plan?.isVitaminDWinter != true {
+            NoticeBanner(
+                kind: .info,
+                title: "Peau encore chargée",
+                message: "Votre dernière sortie a laissé la synthèse à "
+                    + "\(Format.percent(model.restingMarginalYield)) de son rendement. "
+                    + "Ce n'est pas un compteur qui se remet à zéro en rentrant : la "
+                    + "prévitamine D3 formée dans la peau met des heures à en repartir. "
+                    + "Une nouvelle sortie coûterait autant de capital cutané pour "
+                    + "nettement moins de vitamine D.")
+        }
+
         if model.snapshot?.isModelled == true {
             NoticeBanner(
                 kind: .info,

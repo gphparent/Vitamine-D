@@ -147,6 +147,7 @@ enum DayPlanner {
                          timeZone: TimeZone,
                          profile: UserProfile,
                          environment: EnvironmentFactors = .standard,
+                         carried: Double = 0,
                          forecast: [UVConditions]) -> DayPlan {
 
         var calendar = Calendar(identifier: .gregorian)
@@ -197,7 +198,7 @@ enum DayPlanner {
 
         let windows = buildWindows(from: samples)
         let recommendations = buildRecommendations(
-            samples: samples, profile: profile, calendar: calendar)
+            samples: samples, profile: profile, carried: carried, calendar: calendar)
 
         let peakElevation = samples.map(\.solarElevation).max() ?? -90
         let peakUV = samples.map(\.uvIndex).max() ?? 0
@@ -470,15 +471,28 @@ enum DayPlanner {
 
     /// Simule une sortie démarrant à un instant donné et renvoie ce qu'elle
     /// produirait.
+    /// - Parameter carried: charge photochimique déjà installée dans la peau.
+    ///   Une sortie qui suit de peu la précédente démarre plus haut sur la
+    ///   courbe de saturation, et rapporte donc moins pour le même capital
+    ///   cutané dépensé.
     static func simulateSession(startingAt index: Int,
                                 samples: [TimelineSample],
                                 profile: UserProfile,
+                                carried: Double = 0,
                                 maximumDuration: TimeInterval = maximumSessionDuration)
     -> SessionRecommendation? {
         guard index < samples.count, samples[index].isSynthesisPossible else { return nil }
 
-        let ceiling = UVEngine.synthesisCeiling(profile: profile)
         let burnLimit = profile.burnAlertFraction
+
+        // Dose cumulée — charge héritée comprise — à laquelle l'objectif du
+        // jour serait atteint. `nil` quand le plafond l'interdit : ni la tenue
+        // ni le temps passé dehors n'y changeraient alors quoi que ce soit.
+        // Ne dépend pas du déroulement de la sortie, donc calculée une fois.
+        let target = min(profile.dailyGoalIU,
+                         UVEngine.remainingCapacity(carried: carried, profile: profile) * 0.999)
+        let cumulativeNeeded = UVEngine.cumulativeDose(
+            toProduce: target, carried: carried, profile: profile)
 
         var rawIU = 0.0
         var medFraction = 0.0
@@ -509,12 +523,11 @@ enum DayPlanner {
             // et il faut déterminer lequel arrive en premier : traiter
             // l'objectif d'office ferait dépasser la limite que l'utilisateur
             // s'est fixée.
-            let targetSaturated = min(profile.dailyGoalIU, ceiling * 0.999)
-            let rawNeeded = -ceiling * log(1 - targetSaturated / ceiling)
-
-            let goalCrossing: Double? = (rawIU < rawNeeded && nextRaw >= rawNeeded)
-                ? (rawNeeded - rawIU) / max(nextRaw - rawIU, .leastNonzeroMagnitude)
-                : nil
+            let goalCrossing: Double? = cumulativeNeeded.flatMap { needed in
+                (carried + rawIU < needed && carried + nextRaw >= needed)
+                    ? (needed - carried - rawIU) / max(nextRaw - rawIU, .leastNonzeroMagnitude)
+                    : nil
+            }
             let burnCrossing: Double? = (nextMED >= burnLimit)
                 ? (burnLimit - medFraction) / max(nextMED - medFraction, .leastNonzeroMagnitude)
                 : nil
@@ -530,7 +543,7 @@ enum DayPlanner {
                 break
             }
 
-            if UVEngine.marginalYield(rawIU: nextRaw, profile: profile) < diminishingReturnsThreshold {
+            if UVEngine.marginalYield(rawIU: carried + nextRaw, profile: profile) < diminishingReturnsThreshold {
                 rawIU = nextRaw
                 medFraction = nextMED
                 elapsed += step
@@ -546,7 +559,8 @@ enum DayPlanner {
 
         guard elapsed >= 60 else { return nil }
 
-        let reachesGoal = UVEngine.saturated(rawIU: rawIU, profile: profile) >= profile.dailyGoalIU * 0.995
+        let produced = UVEngine.saturated(rawIU: rawIU, carried: carried, profile: profile)
+        let reachesGoal = produced >= profile.dailyGoalIU * 0.995
         let comfort = steps > 0 ? comfortSum / Double(steps) : 0
         let averageUV = steps > 0 ? uvSum / Double(steps) : 0
 
@@ -561,7 +575,7 @@ enum DayPlanner {
         // minutes au crépuscule sont vite passées et ne coûtent presque rien en
         // capital cutané, mais ne produisent rien non plus.
         let attainment = profile.dailyGoalIU > 0
-            ? min(1, UVEngine.saturated(rawIU: rawIU, profile: profile) / profile.dailyGoalIU)
+            ? min(1, produced / profile.dailyGoalIU)
             : 0
         let efficiency = medFraction > 0 ? (rawIU / (medFraction * 100)) : 0
         let brevity = 1.0 / (1.0 + elapsed / (30 * 60))
@@ -574,7 +588,7 @@ enum DayPlanner {
         return SessionRecommendation(
             start: samples[index].date,
             duration: elapsed,
-            expectedIU: UVEngine.saturated(rawIU: rawIU, profile: profile),
+            expectedIU: produced,
             medFraction: medFraction,
             reachesGoal: reachesGoal,
             limitingFactor: limiting,
@@ -586,13 +600,15 @@ enum DayPlanner {
 
     private static func buildRecommendations(samples: [TimelineSample],
                                              profile: UserProfile,
+                                             carried: Double,
                                              calendar: Calendar) -> [SessionRecommendation] {
         var candidates: [SessionRecommendation] = []
         // Un candidat tous les quarts d'heure : assez fin pour bien placer le
         // créneau, assez grossier pour rester instantané.
         let stride = max(1, Int((15 * 60) / sampleInterval))
         for index in Swift.stride(from: 0, to: samples.count, by: stride) {
-            if let session = simulateSession(startingAt: index, samples: samples, profile: profile) {
+            if let session = simulateSession(startingAt: index, samples: samples,
+                                             profile: profile, carried: carried) {
                 candidates.append(session)
             }
         }

@@ -114,9 +114,13 @@ enum SessionIntegrator {
     ///
     /// - Parameter uvIndexAt: fournit l'indice UV à un instant donné, en général
     ///   par interpolation de la prévision horaire.
+    /// - Parameter carried: charge photochimique déjà présente dans la peau au
+    ///   début de la sortie, héritée des expositions précédentes. La sortie ne
+    ///   repart donc pas du bas de la courbe de saturation.
     static func progress(for session: ExposureSession,
                          at date: Date,
                          environment: EnvironmentFactors,
+                         carried: Double = 0,
                          uvIndexAt: (Date) -> Double) -> SessionProgress {
 
         let end = min(date, session.endDate ?? date)
@@ -148,11 +152,11 @@ enum SessionIntegrator {
         let profileNow = session.profile(at: end)
         var progress = SessionProgress(
             elapsed: end.timeIntervalSince(session.startDate),
-            vitaminDIU: UVEngine.saturated(rawIU: rawIU, profile: profileNow),
+            vitaminDIU: UVEngine.saturated(rawIU: rawIU, carried: carried, profile: profileNow),
             rawVitaminDIU: rawIU,
             medFraction: medFraction,
             currentRates: lastRates,
-            marginalYield: UVEngine.marginalYield(rawIU: rawIU, profile: profileNow)
+            marginalYield: UVEngine.marginalYield(rawIU: carried + rawIU, profile: profileNow)
         )
         progress.vitaminDPercentOfGoal = profileNow.dailyGoalIU > 0
             ? progress.vitaminDIU / profileNow.dailyGoalIU
@@ -169,6 +173,7 @@ enum SessionIntegrator {
                               from now: Date,
                               environment: EnvironmentFactors,
                               horizon: TimeInterval = 4 * 3600,
+                              carried: Double = 0,
                               uvIndexAt: (Date) -> Double,
                               reaching predicate: (SessionProgress) -> Bool) -> Date? {
 
@@ -193,11 +198,11 @@ enum SessionIntegrator {
 
             var candidate = SessionProgress(
                 elapsed: cursor.timeIntervalSince(session.startDate),
-                vitaminDIU: UVEngine.saturated(rawIU: rawIU, profile: profile),
+                vitaminDIU: UVEngine.saturated(rawIU: rawIU, carried: carried, profile: profile),
                 rawVitaminDIU: rawIU,
                 medFraction: medFraction,
                 currentRates: rates,
-                marginalYield: UVEngine.marginalYield(rawIU: rawIU, profile: profile))
+                marginalYield: UVEngine.marginalYield(rawIU: carried + rawIU, profile: profile))
             candidate.vitaminDPercentOfGoal = profile.dailyGoalIU > 0
                 ? candidate.vitaminDIU / profile.dailyGoalIU : 0
 

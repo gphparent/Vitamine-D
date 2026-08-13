@@ -114,10 +114,22 @@ enum GlossaryEntry: String, Identifiable, CaseIterable, Sendable {
             Le pourcentage de ce que rapportait la première minute que rapporte \
             encore la minute suivante.
 
-            Il part de 100 % et décroît à mesure que la synthèse approche du \
-            plafond. Sous 35 %, l'application considère que rester dehors ne se \
-            justifie plus par la vitamine D — ce qui ne veut pas dire qu'il faut \
-            rentrer, seulement que le motif a changé.
+            Il décroît à mesure que la synthèse approche du plafond. Sous 35 %, \
+            l'application considère que rester dehors ne se justifie plus par la \
+            vitamine D — ce qui ne veut pas dire qu'il faut rentrer, seulement \
+            que le motif a changé.
+
+            Surtout, il ne repart pas de 100 % parce que vous êtes rentré. \
+            L'équilibre photochimique installé dans la peau ne se défait pas en \
+            franchissant une porte : il se défait à mesure que la prévitamine D3 \
+            quitte l'épiderme, ce qui prend des heures. Sortir dix minutes, \
+            rentrer, puis ressortir ne donne donc pas deux premières minutes à \
+            plein rendement — mais coûte bien deux fois le capital cutané.
+
+            L'application retient une demi-vie de douze heures pour ce retour à \
+            zéro. C'est le chiffre le moins bien établi de tout le modèle, et il \
+            a été choisi prudent : s'il se trompe, c'est en annonçant un \
+            rendement plus bas qu'il n'est, jamais l'inverse.
             """
         case .uvIndex:
             return """

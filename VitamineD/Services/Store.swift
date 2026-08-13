@@ -11,6 +11,7 @@ struct Store {
         case activeSession = "session.active.v1"
         case history = "session.history.v1"
         case environment = "environment.v1"
+        case photosaturation = "skin.photosaturation.v1"
     }
 
     private let defaults: UserDefaults

@@ -243,4 +243,42 @@ enum UVEngine {
     static func marginalYield(rawIU: Double, profile: UserProfile) -> Double {
         exp(-rawIU / synthesisCeiling(profile: profile))
     }
+
+    // MARK: - Exposition sur une peau déjà chargée
+
+    /// Vitamine D produite par une dose brute supplémentaire, à partir d'un
+    /// état de saturation déjà installé.
+    ///
+    /// La courbe de saturation ne repart pas de son origine à chaque sortie :
+    /// on en prend la portion comprise entre la charge déjà présente et le
+    /// nouveau total. D'où une production qui décroît à mesure que la peau se
+    /// charge, alors que le capital cutané, lui, se dépense au même rythme.
+    static func saturated(rawIU: Double, carried: Double, profile: UserProfile) -> Double {
+        let start = max(0, carried)
+        return saturated(rawIU: start + max(0, rawIU), profile: profile)
+            - saturated(rawIU: start, profile: profile)
+    }
+
+    /// Ce que la peau peut encore produire avant d'atteindre le plafond, compte
+    /// tenu de ce qu'elle porte déjà.
+    static func remainingCapacity(carried: Double, profile: UserProfile) -> Double {
+        let ceiling = synthesisCeiling(profile: profile)
+        return ceiling * exp(-max(0, carried) / ceiling)
+    }
+
+    /// Dose brute **cumulée** — charge comprise — à laquelle `target` UI
+    /// supplémentaires auront été produites.
+    ///
+    /// `nil` quand le plafond l'interdit : au-delà de la capacité restante,
+    /// aucune durée d'exposition n'y suffit.
+    static func cumulativeDose(toProduce target: Double,
+                               carried: Double,
+                               profile: UserProfile) -> Double? {
+        guard target > 0 else { return max(0, carried) }
+        let ceiling = synthesisCeiling(profile: profile)
+        let start = max(0, carried)
+        let remainder = exp(-start / ceiling) - target / ceiling
+        guard remainder > 0 else { return nil }
+        return -ceiling * log(remainder)
+    }
 }
