@@ -57,8 +57,12 @@ jobs:
   captures:
     name: Captures d'écran
     runs-on: macos-latest
-    # Indépendant des tests : même si une assertion échoue, on veut voir à quoi
-    # ressemble l'application.
+    # Uniquement sur demande explicite, depuis le bouton « Run workflow ».
+    # Sur un dépôt privé, chaque minute d'exécuteur macOS est décomptée au
+    # décuple du quota mensuel : lancer ce job à chaque poussée consommerait
+    # le forfait en quelques jours, pour des images qui ne changent qu'au
+    # gré des retouches d'interface.
+    if: github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
 
@@ -130,5 +134,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: captures-ecran
-          path: captures/*.png
+          path: captures/*
           retention-days: 14
