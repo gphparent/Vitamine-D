@@ -254,6 +254,55 @@ struct DayPlannerTests {
         }
     }
 
+    // MARK: - Temps avant rougeur
+
+    @Test("Le temps avant rougeur tient compte de la montée du Soleil")
+    func burnTimeFollowsTheRisingSun() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = montreal
+        let summer = plan(on: day(2026, 8, 13))
+        let morning = try #require(calendar.date(
+            bySettingHour: 7, minute: 30, second: 0, of: day(2026, 8, 13)))
+
+        let integrated = try #require(DayPlanner.timeToErythema(
+            from: morning, samples: summer.samples))
+
+        // Le débit figé de 7 h 30 annoncerait près de sept heures ; en suivant
+        // la course réelle du Soleil il n'en reste que deux. C'est tout l'objet
+        // de ce calcul, et l'écart va dans le sens qui rassure à tort.
+        let sample = try #require(summer.sample(nearest: morning))
+        let frozen = 1.0 / sample.rates.medFractionPerMinute * 60
+        #expect(integrated < frozen / 2)
+        #expect(integrated > 60 * 60)
+        #expect(integrated < 3 * 60 * 60)
+    }
+
+    @Test("Brûler devient impossible quand le Soleil descend")
+    func burnBecomesImpossibleLateInTheDay() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = montreal
+        let summer = plan(on: day(2026, 8, 13))
+        let evening = try #require(calendar.date(
+            bySettingHour: 17, minute: 0, second: 0, of: day(2026, 8, 13)))
+
+        // Le débit est encore non nul, donc la formule figée annoncerait un
+        // délai fini — mais le Soleil se couche avant que la dose suffise.
+        let sample = try #require(summer.sample(nearest: evening))
+        #expect(sample.rates.medFractionPerMinute > 0)
+        #expect(DayPlanner.timeToErythema(from: evening, samples: summer.samples) == nil)
+    }
+
+    @Test("Une fraction plus faible est atteinte plus tôt")
+    func lowerFractionComesFirst() throws {
+        let summer = plan(on: day(2026, 6, 21))
+        let noon = summer.solarNoon
+        let half = try #require(DayPlanner.timeToErythema(
+            from: noon, samples: summer.samples, fraction: 0.5))
+        let full = try #require(DayPlanner.timeToErythema(
+            from: noon, samples: summer.samples, fraction: 1.0))
+        #expect(half < full)
+    }
+
     @Test("La nuit ne produit aucun créneau")
     func nightProducesNothing() throws {
         let summer = plan(on: day(2026, 6, 21))

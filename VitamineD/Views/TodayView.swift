@@ -157,7 +157,7 @@ struct TodayView: View {
                            tint: Theme.vitaminD)
                 MetricTile(label: "Coup de soleil",
                            value: burnText,
-                           detail: "peau nue, sans protection")
+                           detail: burnDetail)
                 MetricTile(label: "Aujourd'hui",
                            value: Format.iu(model.todayTotalIU),
                            detail: "objectif \(Int(model.profile.dailyGoalIU)) UI")
@@ -275,10 +275,23 @@ struct TodayView: View {
         return rate < 0.5 ? "—" : "\(Int(rate)) UI/min"
     }
 
+    /// Temps avant rougeur si l'on restait dehors sans bouger à partir de
+    /// maintenant, la course du Soleil comprise.
     private var burnText: String {
-        let fraction = model.currentRates.medFractionPerMinute
-        guard fraction > 0.0001 else { return "—" }
-        return Format.duration(60 / fraction)
+        guard model.currentRates.medFractionPerMinute > 0.0001,
+              let plan = model.plan else { return "—" }
+        guard let seconds = DayPlanner.timeToErythema(
+            from: model.now, samples: plan.samples) else {
+            // Le Soleil se couchera avant que la dose suffise.
+            return "hors d'atteinte"
+        }
+        return Format.duration(seconds)
+    }
+
+    private var burnDetail: String {
+        model.currentRates.medFractionPerMinute > 0.0001
+            ? "peau nue, montée du Soleil comprise"
+            : "peau nue, sans protection"
     }
 }
 

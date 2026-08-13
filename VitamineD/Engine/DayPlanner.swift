@@ -335,6 +335,43 @@ enum DayPlanner {
 
     // MARK: - Recommandations
 
+    /// Durée d'exposition continue, à partir de `date`, avant d'atteindre la
+    /// fraction indiquée de la dose érythémale minimale. `nil` si le Soleil se
+    /// couche avant.
+    ///
+    /// Intègre la course réelle du Soleil au lieu de figer le débit courant.
+    /// L'écart n'est pas anecdotique : un matin d'août à Montréal, le débit de
+    /// 7 h 30 laisse croire à six heures et demie avant la rougeur, alors que
+    /// le Soleil monte si vite qu'il n'en reste que deux. L'erreur va dans le
+    /// sens qui rassure, ce qui est le pire des sens pour ce chiffre-ci.
+    ///
+    /// En fin de journée l'erreur s'inverse : le débit figé annonce encore une
+    /// heure et demie alors qu'il devient tout simplement impossible de brûler
+    /// avant le coucher.
+    static func timeToErythema(from date: Date,
+                               samples: [TimelineSample],
+                               fraction: Double = 1.0) -> TimeInterval? {
+        guard fraction > 0,
+              let start = samples.firstIndex(where: { $0.date >= date }) else { return nil }
+
+        var accumulated = 0.0
+        var elapsed: TimeInterval = 0
+
+        for index in start..<max(start, samples.count - 1) {
+            let sample = samples[index]
+            let step = samples[index + 1].date.timeIntervalSince(sample.date)
+            let increment = sample.rates.medFractionPerMinute * (step / 60)
+
+            if increment > 0, accumulated + increment >= fraction {
+                let ratio = (fraction - accumulated) / increment
+                return elapsed + step * ratio
+            }
+            accumulated += increment
+            elapsed += step
+        }
+        return nil
+    }
+
     /// Simule une sortie démarrant à un instant donné et renvoie ce qu'elle
     /// produirait.
     static func simulateSession(startingAt index: Int,
