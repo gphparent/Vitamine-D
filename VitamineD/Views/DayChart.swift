@@ -174,7 +174,7 @@ struct DayChart: View {
                 Spacer()
                 Text("Touchez la courbe")
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -224,7 +224,7 @@ struct DayChart: View {
                + "La zone rouge marque l'instant où, resté dehors sans interruption "
                + "depuis maintenant, vous auriez atteint le seuil de rougeur.")
             .font(.caption2)
-            .foregroundStyle(.tertiary)
+            .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
     }
 }

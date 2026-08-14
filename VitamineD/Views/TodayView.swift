@@ -200,7 +200,7 @@ struct TodayView: View {
                         if conditions.cloudTransmission < 0.95 {
                             Text("Les nuages retirent \(Format.percent(1 - conditions.cloudTransmission)) du rayonnement UV.")
                                 .font(.caption)
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }

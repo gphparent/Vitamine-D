@@ -43,7 +43,7 @@ struct ClothingView: View {
                                     Text(String(format: "%.1f %%",
                                                 region.rawPercentage / BodyExposure.totalRawPercentage * 100))
                                         .font(.caption.monospacedDigit())
-                                        .foregroundStyle(.tertiary)
+                                        .foregroundStyle(.secondary)
                                 }
                             }
                         }
@@ -121,7 +121,7 @@ struct ClothingView: View {
                             BodyExposure.normalisedFraction(
                                 for: preset == .custom ? exposure.customRegions : preset.exposedRegions) * 100))
                     .font(.caption.monospacedDigit())
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
                 if exposure.preset == preset {
                     Image(systemName: "checkmark")
                         .foregroundStyle(Theme.vitaminD)

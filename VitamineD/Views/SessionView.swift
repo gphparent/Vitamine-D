@@ -140,7 +140,7 @@ struct SessionView: View {
                 }
                 Text(projection.limitingFactor.explanation)
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -215,7 +215,7 @@ struct SessionView: View {
                          + "défile toute seule, et se retrouve dans l'île dynamique "
                          + "quand vous êtes dans une autre application.")
                         .font(.caption)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                 } else if !model.liveActivity.isAvailable {
                     Label("Activités en direct désactivées", systemImage: "lock.slash")
                         .font(.footnote)
@@ -223,7 +223,7 @@ struct SessionView: View {
                     Text("Le décompte pourrait rester affiché sur l'écran verrouillé. "
                          + "Réglages ▸ Vitamine D ▸ Activités en direct.")
                         .font(.caption)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -289,7 +289,7 @@ struct SessionView: View {
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(.footnote)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.secondary)
                 }
             }
             .buttonStyle(.plain)

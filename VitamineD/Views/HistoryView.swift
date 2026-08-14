@@ -189,7 +189,7 @@ struct HistoryView: View {
                      + "à la même molécule, et c'est celle-là qui prendra le relais "
                      + "quand la courbe ci-dessus touchera le fond.")
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -319,7 +319,7 @@ struct HistoryView: View {
             prise de sang mesure un taux.
             """)
             .font(.caption2)
-            .foregroundStyle(.tertiary)
+            .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
         }
     }

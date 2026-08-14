@@ -127,7 +127,7 @@ struct MetricTile: View {
             if let detail {
                 Text(detail)
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -415,7 +415,7 @@ struct OptimalWindowCountdown: View {
                 Text(Format.time(daylight.end, in: plan.timeZone))
             }
             .font(.caption2.monospacedDigit())
-            .foregroundStyle(.tertiary)
+            .foregroundStyle(.secondary)
         }
     }
 
@@ -487,7 +487,7 @@ struct RecommendationCard: View {
 
             Text(recommendation.limitingFactor.explanation)
                 .font(.caption)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)

@@ -14,6 +14,7 @@ struct CircadianView: View {
                 todayCard
                 if model.profile.wantsPhaseShift { shiftCard }
                 eveningCard
+                toolsLink
                 settings(model: model)
                 caveat
             }
@@ -81,7 +82,7 @@ struct CircadianView: View {
 
                 Text(comparisonSentence(light.illuminance))
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
 
                 if light.sunRisesAfterWaking {
                     NoticeBanner(
@@ -140,7 +141,7 @@ struct CircadianView: View {
             cherche à supprimer.
             """)
             .font(.caption)
-            .foregroundStyle(.tertiary)
+            .foregroundStyle(.secondary)
 
             Text(earlier
                  ? "Pour avancer : lumière dès le lever, pénombre le soir."
@@ -170,7 +171,7 @@ struct CircadianView: View {
             Text("Coucher visé : \(Format.minuteOfDay(bedtimeMinute)), pour "
                  + String(format: "%.1f", model.profile.sleepHours) + " heures de sommeil.")
                 .font(.caption)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -195,6 +196,35 @@ struct CircadianView: View {
                 Slider(value: $model.profile.sleepHours, in: 5...10, step: 0.5)
             }
         }
+    }
+
+    /// Renvoi vers le catalogue des outils.
+    ///
+    /// Séparé de la planification quotidienne : ce qui suit relève du choix
+    /// d'équipement, pas de la journée en cours, et mélanger les deux ferait
+    /// d'une page de conseils une vitrine.
+    private var toolsLink: some View {
+        NavigationLink {
+            SleepToolsView()
+        } label: {
+            Card(title: "Les outils", systemImage: "lamp.desk") {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Lampes, simulateurs d'aube, verres filtrants")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.primary)
+                        Text("Ce que vaut chacun, et ce que la preuve dit vraiment")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     private var caveat: some View {

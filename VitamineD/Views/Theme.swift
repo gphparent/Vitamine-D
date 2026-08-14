@@ -99,7 +99,13 @@ enum Theme {
     ///
     /// `systemBackground` plutôt qu'un blanc fixe, pour que le texte ordinaire
     /// garde son contraste dans les deux apparences du système.
-    static let cardBackground = Color(uiColor: .systemBackground).opacity(0.86)
+    ///
+    /// À 86 % — la valeur du système de design, pensée pour le web — le ciel
+    /// remonte assez pour éteindre l'encre tertiaire, qui n'a déjà que 30 %
+    /// d'alpha. La carte se compose alors à moins de 4,5:1 sur ses mentions
+    /// secondaires. 96 % garde la transparence perceptible sans manger le
+    /// texte : c'est la lisibilité qui tranche, pas la maquette.
+    static let cardBackground = Color(uiColor: .systemBackground).opacity(0.96)
 
     // MARK: - Ciel
 

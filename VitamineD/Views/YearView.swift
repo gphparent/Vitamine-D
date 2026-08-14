@@ -177,7 +177,7 @@ struct YearView: View {
                  + "l'hiver vitaminique : le Soleil y reste sous 25°, l'ozone absorbe "
                  + "les UVB, et aucune durée d'exposition ne produit quoi que ce soit.")
                 .font(.caption2)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -197,7 +197,7 @@ struct YearView: View {
                 Spacer()
                 Text("Touchez la courbe")
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
             }
         }
     }
