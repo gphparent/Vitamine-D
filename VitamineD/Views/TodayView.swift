@@ -231,8 +231,10 @@ struct TodayView: View {
             // peau additionne le matin et l'après-midi, et deux demi-doses
             // font une rougeur.
             DualProgressBar(
-                vitaminDFraction: model.profile.dailyGoalIU > 0
-                    ? model.todayTotalIU / model.profile.dailyGoalIU : 0,
+                vitaminDIU: model.todayTotalIU,
+                ceilingIU: UVEngine.synthesisCeiling(profile: model.profile),
+                goalIU: model.profile.dailyGoalIU,
+                erythemaIU: model.vitaminDAtErythema,
                 medFraction: model.todayTotalMEDFraction,
                 burnLevel: model.todayBurnLevel)
         }

@@ -187,23 +187,140 @@ struct UVGauge: View {
 /// cutané consommé de l'autre. Les voir ensemble est tout l'intérêt : la
 /// question n'est jamais « combien de soleil », mais « combien de vitamine D
 /// pour combien de peau ».
+/// Les deux comptes de la journée : ce qui est produit, ce qui est dépensé.
+///
+/// La barre de vitamine D est graduée jusqu'au **plafond de photo-équilibre**,
+/// et non jusqu'à l'objectif. C'est la seule échelle qui ait un sens physique :
+/// au-delà de ce point, la prévitamine D3 se dégrade en lumistérol et en
+/// tachystérol aussi vite qu'elle se forme, et rester dehors n'ajoute plus
+/// rien. Graduer sur l'objectif laissait croire qu'une barre pleine est un
+/// maximum, alors que c'est un choix de l'utilisateur — et masquait le fait
+/// que la peau, elle, s'arrête ailleurs.
+///
+/// Deux repères s'y posent : l'objectif personnel en pointillé, et l'endroit
+/// où la rougeur surviendrait, en rouge. Ce dernier n'apparaît que s'il tombe
+/// avant le plafond ; sinon il n'y a rien à craindre, la synthèse s'arrête la
+/// première.
 struct DualProgressBar: View {
-    let vitaminDFraction: Double
+    /// Vitamine D produite aujourd'hui, en UI.
+    let vitaminDIU: Double
+    /// Plafond de photo-équilibre pour ce profil et cette tenue, en UI.
+    let ceilingIU: Double
+    /// Objectif quotidien choisi par l'utilisateur, en UI.
+    let goalIU: Double
+    /// Vitamine D cumulée à laquelle la rougeur surviendrait. `nil` quand elle
+    /// ne survient pas aujourd'hui.
+    var erythemaIU: Double?
     let medFraction: Double
     let burnLevel: SessionProgress.BurnLevel
 
+    private var ceiling: Double { max(1, ceilingIU) }
+
+    /// Le repère de rougeur ne se dessine que s'il tombe dans la barre.
+    private var visibleErythemaIU: Double? {
+        guard let erythemaIU, erythemaIU < ceiling else { return nil }
+        return erythemaIU
+    }
+
     var body: some View {
         VStack(spacing: 10) {
-            bar(label: "Vitamine D",
-                value: vitaminDFraction,
-                tint: Theme.vitaminD,
-                trailing: Format.percent(min(1, vitaminDFraction)))
+            vitaminDBar
 
             bar(label: "Capital cutané",
                 value: medFraction,
                 tint: Theme.burnColour(burnLevel),
                 trailing: Format.percent(min(1, medFraction)) + " de la DEM",
                 glossary: .skinCapital)
+        }
+    }
+
+    // MARK: - Vitamine D, graduée sur le plafond
+
+    private var vitaminDBar: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 3) {
+                Text("Vitamine D").font(.caption).foregroundStyle(.secondary)
+                GlossaryButton(entry: .synthesisCeiling)
+                Spacer()
+                Text("\(Int(vitaminDIU.rounded())) / \(Format.iu(ceiling))")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+
+            GeometryReader { geometry in
+                let width = geometry.size.width
+                let height = geometry.size.height
+
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.secondary.opacity(0.15))
+
+                    Capsule()
+                        .fill(Theme.vitaminD)
+                        .frame(width: width * fraction(of: vitaminDIU))
+
+                    // Le seuil de rougeur d'abord, l'objectif par-dessus : si
+                    // les deux coïncident, c'est le repère qu'on choisit qui
+                    // doit rester lisible.
+                    if let erythema = visibleErythemaIU {
+                        marker(at: fraction(of: erythema), in: width, height: height)
+                            .stroke(Color.red.opacity(0.85), lineWidth: 2)
+                    }
+
+                    marker(at: fraction(of: goalIU), in: width, height: height)
+                        .stroke(Color.primary.opacity(0.65),
+                                style: StrokeStyle(lineWidth: 2, dash: [2.5, 2.5]))
+                }
+            }
+            .frame(height: 10)
+
+            legend
+        }
+    }
+
+    private func fraction(of value: Double) -> Double {
+        min(1, max(0, value / ceiling))
+    }
+
+    private func marker(at ratio: Double, in width: CGFloat, height: CGFloat) -> Path {
+        // Rentré d'un point de chaque côté : à zéro comme à fond, un trait posé
+        // sur le bord exact de la capsule est coupé en deux par l'arrondi.
+        let x = min(max(1, width * ratio), max(1, width - 1))
+        return Path { path in
+            path.move(to: CGPoint(x: x, y: 0))
+            path.addLine(to: CGPoint(x: x, y: height))
+        }
+    }
+
+    private var legend: some View {
+        HStack(spacing: 12) {
+            legendItem(colour: Color.primary.opacity(0.65), isDashed: true,
+                       text: goalIU > ceiling
+                           ? "objectif hors d'atteinte dans cette tenue"
+                           : "objectif \(Format.iu(goalIU))")
+
+            if let erythema = visibleErythemaIU {
+                legendItem(colour: .red, isDashed: false,
+                           text: "rougeur vers \(Format.iu(erythema))")
+            }
+            Spacer(minLength: 0)
+        }
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+    }
+
+    private func legendItem(colour: Color, isDashed: Bool, text: String) -> some View {
+        HStack(spacing: 4) {
+            // Le trait est posé à x = 1 et non à x = 0 : avec deux points
+            // d'épaisseur, la moitié gauche déborderait sinon du cadre.
+            Path { path in
+                path.move(to: CGPoint(x: 1, y: 0))
+                path.addLine(to: CGPoint(x: 1, y: 9))
+            }
+            .stroke(colour,
+                    style: StrokeStyle(lineWidth: 2, dash: isDashed ? [2.5, 2.5] : []))
+            .frame(width: 2, height: 9)
+
+            Text(text)
         }
     }
 

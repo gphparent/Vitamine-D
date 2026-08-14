@@ -471,6 +471,63 @@ enum DayPlanner {
         return nil
     }
 
+    /// Vitamine D cumulée du jour à l'instant où le seuil d'érythème serait
+    /// franchi, si l'on restait dehors sans interruption à partir de `date`.
+    ///
+    /// Répond à une question que la durée seule ne pose pas : où en serait la
+    /// récolte au moment où la peau rougirait ?
+    ///
+    /// La réponse est plus sévère qu'on ne l'imagine. Le plafond de synthèse et
+    /// la production croissent tous deux avec la surface découverte, si bien
+    /// que leur rapport n'en dépend pas : se couvrir ne rapproche ni n'éloigne
+    /// la rougeur du plafond, cela rétrécit les deux à la fois. Ce qui déplace
+    /// vraiment ce point, c'est le phototype — une peau qui tolère cinq fois
+    /// plus d'énergie avant de rougir va cinq fois plus loin sur sa courbe — et
+    /// la hauteur du Soleil, qui commande la part d'UVB utile dans le
+    /// rayonnement reçu.
+    ///
+    /// Pour un phototype III sous un Soleil au zénith, la rougeur survient vers
+    /// 42 % du plafond. Autrement dit : on ne peut pas remplir la barre en
+    /// restant dehors, quelle que soit la tenue. C'est tout l'objet de
+    /// l'application, et c'est ce que ce repère rend visible.
+    ///
+    /// `nil` quand le Soleil se couche avant que la dose suffise : il n'y a
+    /// alors rien à signaler, aucune durée d'exposition ne fera rougir.
+    static func vitaminDAtErythema(from date: Date,
+                                   samples: [TimelineSample],
+                                   profile: UserProfile,
+                                   carried: Double = 0,
+                                   carriedMED: Double = 0,
+                                   carriedIU: Double = 0) -> Double? {
+        // Ce qui reste de la dose du jour : la peau ne distingue pas les
+        // sorties, et deux demi-doses font une rougeur.
+        let remaining = 1 - max(0, carriedMED)
+        guard remaining > 0 else { return carriedIU }
+        guard let start = samples.firstIndex(where: { $0.date >= date }) else { return nil }
+
+        var accumulatedMED = 0.0
+        var rawIU = 0.0
+
+        for index in start..<max(start, samples.count - 1) {
+            let sample = samples[index]
+            let minutes = samples[index + 1].date.timeIntervalSince(sample.date) / 60
+            let medIncrement = sample.rates.medFractionPerMinute * minutes
+            let rawIncrement = sample.rates.vitaminDIUPerMinute * minutes
+
+            if medIncrement > 0, accumulatedMED + medIncrement >= remaining {
+                // Le seuil tombe au milieu du pas : on ne retient que la part
+                // de vitamine D produite avant lui.
+                let ratio = (remaining - accumulatedMED) / medIncrement
+                rawIU += rawIncrement * ratio
+                return carriedIU + UVEngine.saturated(
+                    rawIU: rawIU, carried: carried, profile: profile)
+            }
+            accumulatedMED += medIncrement
+            rawIU += rawIncrement
+        }
+        return nil
+    }
+
     /// Simule une sortie démarrant à un instant donné et renvoie ce qu'elle
     /// produirait.
     /// - Parameter carried: charge photochimique déjà installée dans la peau.

@@ -250,6 +250,30 @@ final class AppModel {
         carriedMEDToday + (activeSession != nil ? progress.medFraction : 0)
     }
 
+    /// Charge photochimique réellement portée par la peau à l'instant présent,
+    /// sortie en cours comprise.
+    ///
+    /// `carriedLoad` seul ignore la sortie en cours : sa dose n'est versée dans
+    /// la charge qu'à la fin. Pour projeter ce qui se passerait *ensuite*, il
+    /// faut l'ajouter, sinon la peau paraît plus reposée qu'elle ne l'est.
+    var currentPhotochemicalLoad: Double {
+        carriedLoad + (activeSession != nil ? progress.rawVitaminDIU : 0)
+    }
+
+    /// Vitamine D cumulée du jour à laquelle la rougeur apparaîtrait, si l'on
+    /// restait dehors à partir de maintenant. `nil` quand elle n'arrive pas
+    /// avant le coucher du Soleil.
+    var vitaminDAtErythema: Double? {
+        guard let plan else { return nil }
+        return DayPlanner.vitaminDAtErythema(
+            from: now,
+            samples: plan.samples,
+            profile: profile,
+            carried: currentPhotochemicalLoad,
+            carriedMED: todayTotalMEDFraction,
+            carriedIU: todayTotalIU)
+    }
+
     /// Niveau d'alerte cutanée pour la journée, sortie en cours ou non.
     ///
     /// Les seuils sont ceux d'une sortie, appliqués au total du jour : c'est

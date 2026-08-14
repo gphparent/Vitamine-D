@@ -405,6 +405,105 @@ struct DayPlannerTests {
             startingAt: 0, samples: summer.samples, profile: .default) == nil)
     }
 
+    // MARK: - Où tombe la rougeur sur l'échelle de la vitamine D
+
+    @Test("En plein Soleil, la rougeur tombe avant le plafond de synthèse")
+    func erythemaComesBeforeTheCeiling() throws {
+        let summer = plan(on: day(2026, 6, 21))
+        let ceiling = UVEngine.synthesisCeiling(profile: .default)
+
+        let atErythema = try #require(DayPlanner.vitaminDAtErythema(
+            from: summer.solarNoon, samples: summer.samples, profile: .default))
+
+        #expect(atErythema > 0)
+        #expect(atErythema < ceiling)
+        // Un phototype III au zénith atteint la rougeur vers 42 % de son
+        // plafond : c'est le fait central que la barre doit montrer.
+        #expect(atErythema / ceiling > 0.30)
+        #expect(atErythema / ceiling < 0.55)
+    }
+
+    @Test("Se couvrir ne déplace pas la rougeur sur l'échelle du plafond")
+    func clothingMovesBothEndsTogether() throws {
+        // Le plafond et la production croissent tous deux avec la surface
+        // découverte : leur rapport n'en dépend donc pas. Se couvrir rétrécit
+        // les deux à la fois, et ne protège pas de brûler avant d'avoir fini.
+        var bare = UserProfile.default
+        bare.exposure.preset = .swimwear
+        var covered = UserProfile.default
+        covered.exposure.preset = .longSleevesTrousers
+
+        let barePlan = plan(on: day(2026, 6, 21), profile: bare)
+        let coveredPlan = plan(on: day(2026, 6, 21), profile: covered)
+
+        let bareIU = try #require(DayPlanner.vitaminDAtErythema(
+            from: barePlan.solarNoon, samples: barePlan.samples, profile: bare))
+        let coveredIU = try #require(DayPlanner.vitaminDAtErythema(
+            from: coveredPlan.solarNoon, samples: coveredPlan.samples, profile: covered))
+
+        // En valeur absolue, découvrir rapporte beaucoup plus.
+        #expect(bareIU > coveredIU * 4)
+
+        // En proportion du plafond, les deux se superposent.
+        let bareRatio = bareIU / UVEngine.synthesisCeiling(profile: bare)
+        let coveredRatio = coveredIU / UVEngine.synthesisCeiling(profile: covered)
+        #expect(abs(bareRatio - coveredRatio) < 0.02)
+    }
+
+    @Test("Une peau qui tolère plus d'énergie va plus loin sur sa courbe")
+    func darkerSkinReachesFurtherBeforeBurning() throws {
+        var light = UserProfile.default
+        light.skinType = .i
+        var dark = UserProfile.default
+        dark.skinType = .vi
+
+        let lightPlan = plan(on: day(2026, 6, 21), profile: light)
+        let darkPlan = plan(on: day(2026, 6, 21), profile: dark)
+
+        let lightIU = try #require(DayPlanner.vitaminDAtErythema(
+            from: lightPlan.solarNoon, samples: lightPlan.samples, profile: light))
+        let darkIU = try #require(DayPlanner.vitaminDAtErythema(
+            from: darkPlan.solarNoon, samples: darkPlan.samples, profile: dark))
+
+        let lightRatio = lightIU / UVEngine.synthesisCeiling(profile: light)
+        let darkRatio = darkIU / UVEngine.synthesisCeiling(profile: dark)
+        #expect(darkRatio > lightRatio)
+    }
+
+    @Test("Ce qui est déjà dépensé rapproche la rougeur")
+    func spentSkinCapitalMovesTheMarkerCloser() throws {
+        let summer = plan(on: day(2026, 6, 21))
+
+        let fresh = try #require(DayPlanner.vitaminDAtErythema(
+            from: summer.solarNoon, samples: summer.samples, profile: .default))
+        let halfSpent = try #require(DayPlanner.vitaminDAtErythema(
+            from: summer.solarNoon, samples: summer.samples, profile: .default,
+            carriedMED: 0.5))
+
+        #expect(halfSpent < fresh)
+    }
+
+    @Test("Le soir, la rougeur n'arrive plus : aucun repère à poser")
+    func noErythemaMarkerInTheEvening() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = montreal
+        let summer = plan(on: day(2026, 6, 21))
+        let evening = try #require(calendar.date(
+            bySettingHour: 18, minute: 30, second: 0, of: day(2026, 6, 21)))
+
+        #expect(DayPlanner.vitaminDAtErythema(
+            from: evening, samples: summer.samples, profile: .default) == nil)
+    }
+
+    @Test("Une dose déjà atteinte pose le repère là où l'on en est")
+    func alreadyBurntKeepsTheMarkerWhereItIs() throws {
+        let summer = plan(on: day(2026, 6, 21))
+        let atErythema = try #require(DayPlanner.vitaminDAtErythema(
+            from: summer.solarNoon, samples: summer.samples, profile: .default,
+            carriedMED: 1.2, carriedIU: 800))
+        #expect(atErythema == 800)
+    }
+
     // MARK: - Sortir maintenant, ou plus tard
 
     @Test("Au petit matin, sortir maintenant est possible mais attendre vaut mieux")
