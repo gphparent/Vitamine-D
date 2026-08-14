@@ -199,6 +199,140 @@ struct ExposureSessionTests {
         #expect(level(0.7) < level(0.95))
     }
 
+    // MARK: - Se retourner
+
+    /// Une sortie couchée, retournée à mi-parcours.
+    private func flippingSession(startingAt start: Date,
+                                 duration: TimeInterval) -> ExposureSession {
+        var live = session(startingAt: start)
+        live.segments = [
+            .init(start: start, exposure: UserProfile.default.exposure, side: .front),
+            .init(start: start.addingTimeInterval(duration / 2),
+                  exposure: UserProfile.default.exposure, side: .back)
+        ]
+        return live
+    }
+
+    private func lyingSession(startingAt start: Date) -> ExposureSession {
+        var live = session(startingAt: start)
+        live.segments = [.init(start: start,
+                               exposure: UserProfile.default.exposure,
+                               side: .front)]
+        return live
+    }
+
+    @Test("Debout, le calcul par moitiés redonne exactement l'ancien")
+    func uprightMatchesTheWholeBodyFormula() {
+        let live = session(startingAt: noon)
+        let progress = SessionIntegrator.progress(
+            for: live, at: noon.addingTimeInterval(40 * 60),
+            environment: .standard, carried: 500, uvIndexAt: fixedUV(8))
+
+        // Deux demi-plafonds à demi-charge valent un plafond entier à charge
+        // entière : la refonte ne devait rien changer à une sortie debout.
+        let expected = UVEngine.saturated(
+            rawIU: progress.rawVitaminDIU, carried: 500, profile: .default)
+        #expect(abs(progress.vitaminDIU - expected) < 0.5)
+
+        let expectedYield = UVEngine.marginalYield(
+            rawIU: 500 + progress.rawVitaminDIU, profile: .default)
+        #expect(abs(progress.marginalYield - expectedYield) < 0.001)
+
+        #expect(progress.currentSide == .whole)
+        #expect(progress.medBySide.front == 0)
+        #expect(progress.medBySide.back == 0)
+    }
+
+    @Test("Couché, la synthèse tourne à la moitié du débit")
+    func lyingDownHalvesTheSynthesis() {
+        let end = noon.addingTimeInterval(30 * 60)
+        let upright = SessionIntegrator.progress(
+            for: session(startingAt: noon), at: end,
+            environment: .standard, uvIndexAt: fixedUV(8))
+        let lying = SessionIntegrator.progress(
+            for: lyingSession(startingAt: noon), at: end,
+            environment: .standard, uvIndexAt: fixedUV(8))
+
+        #expect(abs(lying.rawVitaminDIU - upright.rawVitaminDIU / 2) < 0.5)
+        // La dose érythémale, elle, ne dépend pas de la surface exposée : la
+        // peau qui regarde le Soleil prend le même éclairement dans les deux
+        // cas.
+        #expect(abs(lying.medFraction - upright.medFraction) < 0.001)
+    }
+
+    @Test("Se retourner divise en deux le capital dépensé sur chaque moitié")
+    func turningOverHalvesTheWorstPatch() {
+        let duration: TimeInterval = 40 * 60
+        let end = noon.addingTimeInterval(duration)
+
+        let onOneSide = SessionIntegrator.progress(
+            for: lyingSession(startingAt: noon), at: end,
+            environment: .standard, uvIndexAt: fixedUV(8))
+        let flipped = SessionIntegrator.progress(
+            for: flippingSession(startingAt: noon, duration: duration), at: end,
+            environment: .standard, uvIndexAt: fixedUV(8))
+
+        // Le fait central : à durée égale et à dose brute égale, la moitié la
+        // plus exposée n'a pris que la moitié de la dose érythémale.
+        #expect(abs(flipped.rawVitaminDIU - onOneSide.rawVitaminDIU) < 0.5)
+        #expect(abs(flipped.medFraction - onOneSide.medFraction / 2) < 0.005)
+
+        // Chaque moitié porte sa part, et aucune n'est oubliée.
+        #expect(flipped.medBySide.front > 0)
+        #expect(flipped.medBySide.back > 0)
+        #expect(abs(flipped.medBySide.front - flipped.medBySide.back) < 0.01)
+        #expect(flipped.currentSide == .back)
+    }
+
+    @Test("La moitié fraîche repart au plein rendement")
+    func theFreshHalfStartsUnsaturated() {
+        // Une exposition assez longue pour que la saturation morde.
+        let duration: TimeInterval = 80 * 60
+        let end = noon.addingTimeInterval(duration)
+
+        let onOneSide = SessionIntegrator.progress(
+            for: lyingSession(startingAt: noon), at: end,
+            environment: .standard, uvIndexAt: fixedUV(9))
+        let flipped = SessionIntegrator.progress(
+            for: flippingSession(startingAt: noon, duration: duration), at: end,
+            environment: .standard, uvIndexAt: fixedUV(9))
+
+        // Même dose brute, mais répartie sur deux moitiés qui saturent chacune
+        // moins vite : la vitamine D réellement produite est plus grande.
+        #expect(abs(flipped.rawVitaminDIU - onOneSide.rawVitaminDIU) < 1)
+        #expect(flipped.vitaminDIU > onOneSide.vitaminDIU)
+        #expect(flipped.marginalYield > onOneSide.marginalYield)
+    }
+
+    @Test("La moitié quittée garde ce qu'elle a pris")
+    func theAbandonedHalfKeepsItsDose() {
+        let duration: TimeInterval = 40 * 60
+        let live = flippingSession(startingAt: noon, duration: duration)
+
+        let atFlip = SessionIntegrator.progress(
+            for: live, at: noon.addingTimeInterval(duration / 2),
+            environment: .standard, uvIndexAt: fixedUV(8))
+        let atEnd = SessionIntegrator.progress(
+            for: live, at: noon.addingTimeInterval(duration),
+            environment: .standard, uvIndexAt: fixedUV(8))
+
+        // Rien n'est remis à zéro : la première face porte encore, à la fin,
+        // ce qu'elle avait au moment du retournement.
+        #expect(atEnd.medBySide.front > 0)
+        #expect(abs(atEnd.medBySide.front - atFlip.medBySide.front) < 0.001)
+    }
+
+    @Test("Une sortie enregistrée sans face se relit comme une sortie debout")
+    func legacySegmentDecodesAsUpright() throws {
+        let json = """
+        {"start": 780000000, "exposure": {"preset": "tShirtShorts",
+         "customRegions": [], "sunscreenSPF": 1, "wearsHat": false}}
+        """.data(using: .utf8)!
+
+        let segment = try JSONDecoder().decode(ExposureSession.Segment.self, from: json)
+        #expect(segment.side == .whole)
+    }
+
     @Test("Une sortie de nuit n'accumule rien")
     func nightSessionAccumulatesNothing() {
         let midnight = noon.addingTimeInterval(-12 * 3600)

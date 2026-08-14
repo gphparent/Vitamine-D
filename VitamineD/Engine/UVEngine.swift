@@ -194,10 +194,16 @@ enum UVEngine {
     // MARK: - Débits de dose
 
     /// Débits instantanés de vitamine D et de dose érythémale.
+    ///
+    /// - Parameter illuminatedShare: part de la peau découverte réellement
+    ///   tournée vers le Soleil. Vaut 1 debout, une demie couché. N'agit que
+    ///   sur la synthèse : la dose érythémale se mesure par unité de peau
+    ///   éclairée, et ne dépend donc pas de la quantité qui l'est.
     static func rates(profile: UserProfile,
                       uvIndex: Double,
                       solarElevation: Double,
-                      environment: EnvironmentFactors = .standard) -> DoseRates {
+                      environment: EnvironmentFactors = .standard,
+                      illuminatedShare: Double = 1) -> DoseRates {
         guard uvIndex > 0, solarElevation > 0 else { return .zero }
 
         let transmission = profile.exposure.sunscreenTransmission * environment.skyViewFactor
@@ -213,6 +219,7 @@ enum UVEngine {
             * uvIndex
             * efficiency
             * profile.exposure.exposedBodyFraction
+            * max(0, min(1, illuminatedShare))
             * profile.skinType.vitaminDFactor
             * profile.ageFactor
             * transmission
@@ -234,14 +241,22 @@ enum UVEngine {
     ///
     /// La saturation exponentielle reproduit le comportement observé : rendement
     /// quasi linéaire au début de l'exposition, puis aplatissement progressif.
-    static func saturated(rawIU: Double, profile: UserProfile) -> Double {
-        let ceiling = synthesisCeiling(profile: profile)
+    static func saturated(rawIU: Double, ceiling: Double) -> Double {
+        let ceiling = max(1, ceiling)
         return ceiling * (1 - exp(-rawIU / ceiling))
     }
 
+    static func saturated(rawIU: Double, profile: UserProfile) -> Double {
+        saturated(rawIU: rawIU, ceiling: synthesisCeiling(profile: profile))
+    }
+
     /// Part du rendement encore disponible à ce niveau de dose cumulée, de 0 à 1.
+    static func marginalYield(rawIU: Double, ceiling: Double) -> Double {
+        exp(-rawIU / max(1, ceiling))
+    }
+
     static func marginalYield(rawIU: Double, profile: UserProfile) -> Double {
-        exp(-rawIU / synthesisCeiling(profile: profile))
+        marginalYield(rawIU: rawIU, ceiling: synthesisCeiling(profile: profile))
     }
 
     // MARK: - Exposition sur une peau déjà chargée

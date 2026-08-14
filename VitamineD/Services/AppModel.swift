@@ -450,27 +450,45 @@ final class AppModel {
                            startedAt: session.startDate,
                            state: liveActivityState(for: session))
 
-        // Valeurs saisies avant de franchir la frontière de la tâche : elles
-        // décrivent l'état de la journée à cet instant précis.
-        let carried = carriedAtSessionStart
-        let carriedMED = carriedMEDToday
-        let carriedIU = carriedIUToday
-        Task {
-            await notifications.scheduleSessionAlerts(
-                session: session,
-                environment: environment,
-                carried: carried,
-                carriedMED: carriedMED,
-                carriedIU: carriedIU,
-                uvIndexAt: uvIndexProvider())
-        }
+        rescheduleSessionAlerts(for: session)
+    }
+
+    /// Face du corps actuellement présentée au Soleil.
+    var currentSide: BodySide { activeSession?.currentSide ?? .whole }
+
+    /// Se retourner, ou se relever.
+    ///
+    /// Ouvre une tranche de sortie sur l'autre moitié du corps. Rien n'est
+    /// remis à zéro : la moitié qu'on quitte garde ce qu'elle a pris, et la
+    /// reprendra si l'on se retourne de nouveau. C'est la peau réelle qui se
+    /// comporte ainsi, et c'est pourquoi le geste vaut la peine — la moitié qui
+    /// arrive part avec son capital cutané intact et son plein rendement de
+    /// synthèse.
+    func setSessionSide(_ side: BodySide) {
+        guard var session = activeSession, session.currentSide != side else { return }
+        session.segments.append(.init(start: Date(),
+                                      exposure: profile.exposure,
+                                      side: side))
+        activeSession = session
+        store.save(session, for: .activeSession)
+        updateProgress()
+
+        liveActivity.update(liveActivityState(for: session), force: true)
+        rescheduleSessionAlerts(for: session)
+    }
+
+    /// Passer d'une face à l'autre.
+    func turnOver() {
+        setSessionSide(currentSide.flipped)
     }
 
     /// Enregistre un changement de tenue en cours de sortie.
     func updateSessionExposure(_ exposure: BodyExposure) {
         profile.exposure = exposure
         guard var session = activeSession else { return }
-        session.segments.append(.init(start: Date(), exposure: exposure))
+        session.segments.append(.init(start: Date(),
+                                      exposure: exposure,
+                                      side: session.currentSide))
         activeSession = session
         store.save(session, for: .activeSession)
         updateProgress()
@@ -479,10 +497,16 @@ final class AppModel {
         // sur l'écran verrouillé, sans attendre le prochain créneau.
         liveActivity.update(liveActivityState(for: session), force: true)
 
-        // Les alertes déjà déposées reposaient sur l'ancienne tenue : elles ne
-        // valent plus rien. On les remplace.
-        // Valeurs saisies avant de franchir la frontière de la tâche : elles
-        // décrivent l'état de la journée à cet instant précis.
+        rescheduleSessionAlerts(for: session)
+    }
+
+    /// Remplace les alertes en attente.
+    ///
+    /// Celles qui sont déjà déposées auprès du système reposaient sur la tenue
+    /// et la position d'avant : elles ne valent plus rien. Les valeurs sont
+    /// saisies avant de franchir la frontière de la tâche, pour décrire l'état
+    /// de la journée à cet instant précis.
+    private func rescheduleSessionAlerts(for session: ExposureSession) {
         let carried = carriedAtSessionStart
         let carriedMED = carriedMEDToday
         let carriedIU = carriedIUToday

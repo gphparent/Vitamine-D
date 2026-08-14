@@ -197,8 +197,78 @@ struct OutingSection: View {
                 }
             }
 
+            postureCard
             statusBanner
             alertsCard
+        }
+    }
+
+    // MARK: - Debout, couché, retourné
+
+    /// La position, et le bouton qui vaut le plus cher de tout l'écran.
+    ///
+    /// Se retourner ne remet rien à zéro : cela ouvre un second compte. La
+    /// moitié qu'on quitte garde ce qu'elle a pris — et la reprendra si l'on
+    /// se retourne encore — pendant que la moitié qui arrive part avec son
+    /// capital cutané intact.
+    private var postureCard: some View {
+        let side = model.currentSide
+        let med = model.progress.medBySide
+
+        return Card(title: "Position", systemImage: side.symbolName) {
+            Picker("Position", selection: Binding(
+                get: { side },
+                set: { model.setSessionSide($0) })) {
+                ForEach(BodySide.allCases) { option in
+                    Text(option.shortTitle).tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            if side.isLyingDown {
+                Button {
+                    model.turnOver()
+                } label: {
+                    Label("Je me retourne", systemImage: "arrow.triangle.2.circlepath")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 4)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.vitaminD)
+
+                GoldRule()
+
+                HStack(spacing: 12) {
+                    MetricTile(label: BodySide.front.title,
+                               value: Format.percent(med.erythemal(of: .front)),
+                               detail: side == .front ? "au Soleil" : "à l'abri",
+                               tint: side == .front ? Theme.burnColour(burnLevel) : .secondary)
+                    MetricTile(label: BodySide.back.title,
+                               value: Format.percent(med.erythemal(of: .back)),
+                               detail: side == .back ? "au Soleil" : "à l'abri",
+                               tint: side == .back ? Theme.burnColour(burnLevel) : .secondary)
+                }
+
+                Text("""
+                Couché, la moitié du corps qui regarde le ciel prend toute la \
+                dose, et l'autre n'en prend aucune. La synthèse tourne donc à \
+                la moitié du débit d'une position debout — mais le coup de \
+                soleil, lui, se prépare aussi vite.
+
+                Se retourner à mi-parcours donne la même vitamine D pour la \
+                moitié du capital cutané sur chaque moitié. C'est le seul geste \
+                gratuit de toute l'application.
+                """)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            } else {
+                Text("Debout ou en marche, le corps pivote : toute la peau "
+                     + "découverte compte comme une seule pièce. Passez à "
+                     + "« Ventre » ou « Dos » si vous vous allongez — les deux "
+                     + "moitiés se comptent alors séparément.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 

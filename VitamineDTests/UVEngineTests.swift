@@ -250,4 +250,31 @@ struct UVEngineTests {
         #expect(hatted.exposedBodyFraction < bareHead.exposedBodyFraction)
         #expect(!hatted.exposedRegions.contains(.face))
     }
+
+    @Test("La part éclairée n'agit que sur la synthèse")
+    func illuminatedShareLeavesErythemaAlone() {
+        let whole = UVEngine.rates(profile: .default, uvIndex: 8, solarElevation: 60)
+        let half = UVEngine.rates(profile: .default, uvIndex: 8, solarElevation: 60,
+                                  illuminatedShare: 0.5)
+
+        // Moitié de peau tournée vers le Soleil, moitié de vitamine D.
+        #expect(abs(half.vitaminDIUPerMinute - whole.vitaminDIUPerMinute / 2) < 0.001)
+
+        // Mais l'éclairement reçu par la peau qui est au Soleil ne change pas :
+        // c'est une puissance par unité de surface, et elle ne se divise pas
+        // parce qu'il y a moins de surface.
+        #expect(half.medFractionPerMinute == whole.medFractionPerMinute)
+        #expect(half.erythemalJoulesPerMinute == whole.erythemalJoulesPerMinute)
+    }
+
+    @Test("Une part éclairée absurde est ramenée dans les bornes")
+    func illuminatedShareIsClamped() {
+        let normal = UVEngine.rates(profile: .default, uvIndex: 8, solarElevation: 60)
+        let tooMuch = UVEngine.rates(profile: .default, uvIndex: 8, solarElevation: 60,
+                                     illuminatedShare: 4)
+        let negative = UVEngine.rates(profile: .default, uvIndex: 8, solarElevation: 60,
+                                      illuminatedShare: -1)
+        #expect(tooMuch.vitaminDIUPerMinute == normal.vitaminDIUPerMinute)
+        #expect(negative.vitaminDIUPerMinute == 0)
+    }
 }
