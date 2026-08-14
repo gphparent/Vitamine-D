@@ -441,36 +441,91 @@ struct OptimalWindowCountdown: View {
     }
 }
 
-/// Carte d'un créneau recommandé.
-struct RecommendationCard: View {
+/// L'une des deux façons de sortir : maintenant, ou à telle heure.
+///
+/// La phrase entière tient sur la première ligne — « Sortez maintenant pendant
+/// 18 min » — parce que c'est la seule chose qu'on cherche en ouvrant
+/// l'application. Les chiffres qui la justifient viennent en dessous, et
+/// personne n'est obligé de les lire.
+struct OutingOptionRow: View {
+
+    enum Kind {
+        case now, later
+
+        var symbolName: String {
+            switch self {
+            case .now:   return "figure.walk.departure"
+            case .later: return "clock"
+            }
+        }
+    }
+
+    let kind: Kind
     let recommendation: SessionRecommendation
+    let goalIU: Double
     let timeZone: TimeZone
-    var isPrimary: Bool = false
+    /// Option mise en avant : celle qu'on conseille réellement.
+    var isPreferred: Bool = false
+    /// Bouton de départ, uniquement pour l'option immédiate.
+    var start: (() -> Void)?
+
+    /// La limite cutanée arrive-t-elle avant l'objectif ?
+    ///
+    /// C'est le seul cas où l'application demande de s'arrêter en chemin, et
+    /// il dépend entièrement de la tenue : c'est pourquoi il est signalé ici
+    /// plutôt que noyé dans une note de bas de carte.
+    private var burnsBeforeGoal: Bool {
+        recommendation.limitingFactor == .burnRisk
+    }
+
+    private var headline: String {
+        switch kind {
+        case .now:
+            return "Sortez maintenant pendant \(recommendation.minutes) min"
+        case .later:
+            return "Sortez à \(Format.time(recommendation.start, in: timeZone)) "
+                + "pendant \(recommendation.minutes) min"
+        }
+    }
+
+    private var purpose: String {
+        if recommendation.reachesGoal {
+            return "pour atteindre l'objectif de \(Format.iu(goalIU))"
+        }
+        if burnsBeforeGoal {
+            return "pour \(Format.iu(recommendation.expectedIU)) — au-delà, "
+                + "c'est votre peau qui paie"
+        }
+        return "pour \(Format.iu(recommendation.expectedIU)) sur les "
+            + "\(Format.iu(goalIU)) visées"
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Les créneaux sont présentés dans l'ordre de la journée : le meilleur
-            // n'est plus forcément le premier, il lui faut donc une marque.
-            if isPrimary {
-                Text("Meilleur créneau")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(Theme.vitaminD)
-                    .textCase(.uppercase)
-            }
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: kind.symbolName)
+                    .font(.title3)
+                    .foregroundStyle(isPreferred ? Theme.vitaminD : .secondary)
+                    .frame(width: 26)
 
-            HStack(alignment: .firstTextBaseline) {
-                Text(Format.time(recommendation.start, in: timeZone))
-                    .font(.title2.weight(.semibold))
-                    .monospacedDigit()
-                Text("pendant \(recommendation.minutes) min")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Spacer()
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(headline)
+                        .font(.headline)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(purpose)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+
                 if recommendation.reachesGoal {
                     Image(systemName: "checkmark.seal.fill")
                         .foregroundStyle(Theme.vitaminD)
                 }
             }
+
+            if burnsBeforeGoal { burnWarning }
 
             HStack(spacing: 16) {
                 MetricTile(label: "Vitamine D",
@@ -485,9 +540,15 @@ struct RecommendationCard: View {
                            tint: Theme.uvColour(recommendation.averageUVIndex))
             }
 
-            Text(recommendation.limitingFactor.explanation)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if let start {
+                Button(action: start) {
+                    Label("Je sors", systemImage: "figure.walk.departure")
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 4)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.vitaminD)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
@@ -500,13 +561,106 @@ struct RecommendationCard: View {
                 .fill(Theme.cardBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(isPrimary ? Theme.vitaminD.opacity(0.12) : .clear)
+                        .fill(isPreferred ? Theme.vitaminD.opacity(0.12) : .clear)
                 )
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(isPrimary ? Theme.vitaminD.opacity(0.45) : Theme.cardEdge,
+                .strokeBorder(isPreferred ? Theme.vitaminD.opacity(0.45) : Theme.cardEdge,
                               lineWidth: 1)
         )
+    }
+
+    /// Le triangle d'alerte.
+    private var burnWarning: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .font(.subheadline)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Coup de soleil avant l'objectif")
+                    .font(.subheadline.weight(.semibold))
+                Text("Dans cette tenue et sous ce Soleil, votre limite cutanée "
+                     + "arrive la première. Découvrez davantage de peau pour aller "
+                     + "plus vite, ou arrêtez-vous en chemin.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(Color.orange.opacity(0.12),
+                    in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+}
+
+/// Lecture et écriture d'une mesure saisie à la main.
+///
+/// Poids et taille sont saisis en texte plutôt que liés au profil : une liaison
+/// directe écrirait « 7 kg » le temps de taper « 70 ». La conversion est donc
+/// explicite, et faite au même endroit pour les deux écrans qui la demandent —
+/// deux analyseurs subtilement différents finiraient par accepter des choses
+/// différentes.
+enum MeasurementField {
+
+    static func text(from value: Double?) -> String {
+        guard let value else { return "" }
+        return String(format: "%.0f", value)
+    }
+
+    /// La virgule décimale est celle du clavier français : la refuser ferait
+    /// perdre la saisie sans rien dire.
+    static func value(from text: String) -> Double? {
+        let normalised = text
+            .replacingOccurrences(of: ",", with: ".")
+            .trimmingCharacters(in: .whitespaces)
+        guard let value = Double(normalised), value > 0 else { return nil }
+        return value
+    }
+}
+
+/// Rappel juridique et scientifique, partout où l'application avance un chiffre
+/// qui pourrait passer pour une posologie.
+///
+/// Il n'est pas décoratif. L'application donne un objectif quotidien en unités
+/// internationales et des durées d'exposition à la minute : deux choses qui
+/// ressemblent à s'y méprendre à une ordonnance, et n'en sont pas.
+struct MedicalNotice: View {
+    /// Version courte, pour un pied de section déjà chargé.
+    var isCompact = false
+
+    private static let full = """
+    Cette application n'est pas un dispositif médical et ne pose aucun \
+    diagnostic. Elle applique des données publiées — apports de référence de \
+    Santé Canada et de l'Institute of Medicine, photobiologie cutanée, \
+    position du Soleil — à un modèle, et ne mesure rien dans votre sang.
+
+    La réponse individuelle varie d'un facteur deux à trois entre personnes de \
+    même phototype. L'avis de votre médecin prime sur tout ce qui est affiché \
+    ici, sans exception — et il est nécessaire si vous prenez un traitement \
+    photosensibilisant, souffrez d'une maladie de peau ou avez un antécédent \
+    de cancer cutané.
+    """
+
+    private static let short = """
+    Information fondée sur des données scientifiques publiées, et non un avis \
+    médical. L'avis de votre médecin prime.
+    """
+
+    @ViewBuilder
+    var body: some View {
+        if isCompact {
+            Label(Self.short, systemImage: "stethoscope")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else {
+            Card(title: "Ce que ceci n'est pas", systemImage: "stethoscope") {
+                Text(Self.full)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 }

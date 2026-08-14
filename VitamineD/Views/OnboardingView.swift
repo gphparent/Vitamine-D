@@ -26,14 +26,17 @@ struct OnboardingView: View {
     @State private var questionnaire = PhototypeQuestionnaire()
     @State private var chosenType: SkinType?
     @State private var age = 35
+    @State private var weightText = ""
+    @State private var heightText = ""
+    @State private var adoptsSuggestedGoal = true
     @State private var hasSeeded = false
 
-    /// Trois pages d'explication, l'âge, l'ascendance, les cinq questions,
-    /// puis le résultat.
-    private var stepCount: Int { PhototypeQuestionnaire.questions.count + 6 }
+    /// Trois pages d'explication, l'âge, la morphologie, l'ascendance, les cinq
+    /// questions, puis le résultat.
+    private var stepCount: Int { PhototypeQuestionnaire.questions.count + 7 }
 
     /// Rang de la première question du questionnaire.
-    private static let firstQuestionStep = 5
+    private static let firstQuestionStep = 6
 
     var body: some View {
         NavigationStack {
@@ -76,6 +79,11 @@ struct OnboardingView: View {
                 age = model.profile.age
                 chosenType = model.profile.skinType
                 questionnaire.ancestry = model.profile.ancestry
+                weightText = MeasurementField.text(from: model.profile.weightKilograms)
+                heightText = MeasurementField.text(from: model.profile.heightCentimetres)
+                // Un objectif déjà réglé à la main ne doit pas être écrasé par
+                // la suggestion parce qu'on relit une explication.
+                adoptsSuggestedGoal = !model.profile.goalDivergesFromSuggestion
             }
         }
     }
@@ -89,7 +97,8 @@ struct OnboardingView: View {
         case 1:      uvbWindow
         case 2:      fabricPrimer
         case 3:      welcome
-        case 4:      ancestryStep
+        case 4:      morphologyStep
+        case 5:      ancestryStep
         case stepCount - 1: result
         default:     question(PhototypeQuestionnaire.questions[step - Self.firstQuestionStep])
         }
@@ -198,6 +207,92 @@ struct OnboardingView: View {
         }
     }
 
+    /// Poids, taille, et l'objectif quotidien qui en découle.
+    ///
+    /// Ni l'un ni l'autre n'entre dans le calcul des durées : la synthèse
+    /// dépend de la surface de peau découverte, pas de la masse. Ils ne servent
+    /// qu'à proposer une cible, et la page le dit — sans quoi on croirait que
+    /// se peser change le temps à passer dehors.
+    private var morphologyStep: some View {
+        let suggestion = VitaminDTarget.suggestion(
+            age: age,
+            weightKilograms: MeasurementField.value(from: weightText),
+            heightCentimetres: MeasurementField.value(from: heightText))
+
+        return VStack(alignment: .leading, spacing: 18) {
+            Image(systemName: "target")
+                .font(.system(size: 52))
+                .foregroundStyle(Theme.vitaminD)
+
+            Text("Quel objectif viser")
+                .font(.largeTitle.weight(.semibold))
+
+            Text("""
+            L'ancrage est l'apport de référence de Santé Canada : \
+            \(Int(suggestion.referenceIU)) UI par jour \
+            \(age > 70 ? "au-delà de 70 ans" : "pour un adulte").
+
+            La vitamine D étant liposoluble, elle se dilue dans la masse grasse. \
+            Votre taille et votre poids permettent d'ajuster la suggestion — \
+            c'est facultatif, et cela ne change aucune durée d'exposition.
+            """)
+            .font(.body)
+            .foregroundStyle(.secondary)
+
+            VStack(spacing: 10) {
+                field("Poids", unit: "kg", text: $weightText)
+                field("Taille", unit: "cm", text: $heightText)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Objectif suggéré")
+                        .font(.subheadline.weight(.medium))
+                    Spacer()
+                    Text(Format.iu(suggestion.dailyIU))
+                        .font(.title3.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(Theme.vitaminD)
+                }
+                Text(VitaminDTarget.rationale(for: suggestion, age: age))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Toggle("Adopter cet objectif", isOn: $adoptsSuggestedGoal)
+                    .font(.subheadline)
+                    .tint(Theme.vitaminD)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.cardBackground,
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+            Label("Une suggestion, pas une prescription : l'avis de votre médecin "
+                  + "prime, et lui seul peut doser à partir d'une prise de sang.",
+                  systemImage: "stethoscope")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func field(_ label: String, unit: String, text: Binding<String>) -> some View {
+        HStack {
+            Text(label)
+                .font(.subheadline)
+            Spacer()
+            TextField("—", text: text)
+                .keyboardType(.decimalPad)
+                .multilineTextAlignment(.trailing)
+                .monospacedDigit()
+                .frame(maxWidth: 90)
+            Text(unit)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .background(Theme.cardBackground,
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
     private var ancestryStep: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Votre ascendance")
@@ -300,6 +395,10 @@ struct OnboardingView: View {
                     chosenType = type
                 }
             }
+
+            Divider()
+
+            MedicalNotice(isCompact: true)
         }
     }
 
@@ -350,6 +449,11 @@ struct OnboardingView: View {
         profile.skinType = chosenType ?? questionnaire.suggestion
         profile.age = age
         profile.ancestry = questionnaire.ancestry
+        profile.weightKilograms = MeasurementField.value(from: weightText)
+        profile.heightCentimetres = MeasurementField.value(from: heightText)
+        if adoptsSuggestedGoal {
+            profile.dailyGoalIU = profile.suggestedGoal.dailyIU
+        }
         profile.hasCompletedOnboarding = true
         model.profile = profile
         dismiss()

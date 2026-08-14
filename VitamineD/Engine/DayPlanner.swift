@@ -604,6 +604,80 @@ enum DayPlanner {
         )
     }
 
+    // MARK: - Les deux façons de sortir
+
+    /// Ce qu'il est possible de faire aujourd'hui, ramené aux deux seules
+    /// questions qu'on se pose devant une fenêtre.
+    ///
+    /// Trois créneaux classés par mérite demandaient de comparer trois cartes
+    /// pour décider d'une chose simple : est-ce que je sors maintenant, ou est-ce
+    /// que j'attends ? On répond donc aux deux questions séparément.
+    struct OutingOptions: Equatable, Sendable {
+        /// Ce que donnerait une sortie commencée à l'instant. `nil` quand le
+        /// Soleil est trop bas, ou quand le capital cutané du jour est épuisé.
+        let immediate: SessionRecommendation?
+        /// Le meilleur créneau restant de la journée.
+        let later: SessionRecommendation?
+
+        static let none = OutingOptions(immediate: nil, later: nil)
+
+        /// Attendre vaut-il mieux que sortir tout de suite ?
+        ///
+        /// La comparaison porte sur le score, qui pèse déjà l'objectif atteint,
+        /// le capital cutané dépensé et le confort. Une marge est exigée : un
+        /// avantage de quelques pour cent ne justifie pas de renvoyer quelqu'un
+        /// à cet après-midi.
+        var laterIsBetter: Bool {
+            guard let later else { return false }
+            guard let immediate else { return true }
+            return later.score > immediate.score * 1.15
+        }
+    }
+
+    /// Délai minimal avant le créneau « plus tard ».
+    ///
+    /// Proposer de sortir dans cinq minutes plutôt que maintenant n'aide
+    /// personne : les deux options doivent être franchement distinctes.
+    static let laterOptionDelay: TimeInterval = 20 * 60
+
+    static func outingOptions(plan: DayPlan,
+                              at date: Date,
+                              profile: UserProfile,
+                              carried: Double = 0,
+                              carriedMED: Double = 0) -> OutingOptions {
+        // Un jour d'hiver vitaminique ne propose rien, et c'est délibéré. Le
+        // modèle continu, lui, rend encore un ou deux UI par minute sous 25° :
+        // la table de rendement y est une extrapolation, et proposer « sortez
+        // quatre-vingt-dix minutes pour cent soixante unités » contredirait le
+        // bandeau qui vient d'annoncer, à raison, que la journée ne produit
+        // rien. Sortir reste possible — l'écran garde un bouton pour cela —
+        // mais l'application cesse de le recommander.
+        guard !plan.isVitaminDWinter else { return .none }
+
+        let samples = plan.samples
+        let immediate = samples.firstIndex { $0.date >= date }.flatMap {
+            simulateSession(startingAt: $0, samples: samples, profile: profile,
+                            carried: carried, carriedMED: carriedMED)
+        }
+
+        // Le meilleur créneau restant est cherché à nouveau, plutôt que repris
+        // des trois recommandations du plan : à seize heures, ces trois-là
+        // peuvent toutes être derrière nous, et « plus tard » n'aurait plus rien
+        // à proposer alors qu'il reste du Soleil utile.
+        let horizon = date.addingTimeInterval(laterOptionDelay)
+        let step = max(1, Int((15 * 60) / sampleInterval))
+        var best: SessionRecommendation?
+        for index in Swift.stride(from: 0, to: samples.count, by: step)
+        where samples[index].date >= horizon {
+            guard let candidate = simulateSession(
+                startingAt: index, samples: samples, profile: profile,
+                carried: carried, carriedMED: carriedMED) else { continue }
+            if candidate.score > (best?.score ?? -1) { best = candidate }
+        }
+
+        return OutingOptions(immediate: immediate, later: best)
+    }
+
     private static func buildRecommendations(samples: [TimelineSample],
                                              profile: UserProfile,
                                              carried: Double,

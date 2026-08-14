@@ -360,7 +360,12 @@ final class AppModel {
     // MARK: - Plan
 
     private func rebuildPlan() {
-        guard let location else { plan = nil; yearOutlook = nil; return }
+        guard let location else {
+            plan = nil
+            yearOutlook = nil
+            refreshOutingOptions(force: true)
+            return
+        }
         let forecast = snapshot?.hourly ?? []
         let zone = snapshot?.timeZone ?? .current
         plan = DayPlanner.makePlan(
@@ -385,6 +390,8 @@ final class AppModel {
                                               longitude: location.longitude,
                                               timeZone: zone)
         }
+
+        refreshOutingOptions(force: true)
     }
 
     /// Plan d'un jour quelconque, pour la vue des prochains jours.
@@ -512,7 +519,35 @@ final class AppModel {
         return record
     }
 
+    // MARK: - Sortir maintenant, ou plus tard
+
+    /// Les deux options de sortie, telles que l'écran principal les présente.
+    ///
+    /// Conservées plutôt que recalculées à la demande : la vue les lit à chaque
+    /// rendu, et chaque lecture simulerait une soixantaine de sorties. Une
+    /// minute de granularité suffit — un créneau ne se déplace pas plus vite
+    /// que cela.
+    private(set) var outingOptions = DayPlanner.OutingOptions.none
+    private var outingOptionsMinute: Date?
+
+    private func refreshOutingOptions(force: Bool = false) {
+        guard let plan else {
+            outingOptions = .none
+            outingOptionsMinute = nil
+            return
+        }
+        let minute = Date(timeIntervalSinceReferenceDate:
+            (now.timeIntervalSinceReferenceDate / 60).rounded(.down) * 60)
+        guard force || outingOptionsMinute != minute else { return }
+        outingOptionsMinute = minute
+        outingOptions = DayPlanner.outingOptions(
+            plan: plan, at: now, profile: profile,
+            carried: carriedLoad, carriedMED: carriedMEDToday)
+    }
+
     private func updateProgress() {
+        refreshOutingOptions()
+
         guard let session = activeSession else { progress = .zero; return }
         progress = SessionIntegrator.progress(
             for: session, at: now, environment: environment,

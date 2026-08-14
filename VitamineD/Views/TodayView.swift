@@ -17,13 +17,16 @@ struct TodayView: View {
                             .padding(.bottom, 2)
                         notices
                         statusCard
+                        // Puis la seule décision à prendre : sortir maintenant,
+                        // ou attendre. Elle vient avant tout ce qui l'explique.
+                        OutingSection()
                         clothingCard
                         if let plan = model.plan {
-                            recommendations(plan)
                             Card { DayChart(plan: plan, now: model.now) }
                             dayFacts(plan)
                         }
                         explanation
+                        MedicalNotice()
                     }
                 }
                 .padding(16)
@@ -321,37 +324,6 @@ struct TodayView: View {
             )
         }
         .buttonStyle(.plain)
-    }
-
-    private func recommendations(_ plan: DayPlan) -> some View {
-        Group {
-            if plan.recommendations.isEmpty {
-                Card(title: "Créneaux", systemImage: "clock") {
-                    Text(plan.isVitaminDWinter
-                         ? "Aucun créneau aujourd'hui : le Soleil reste trop bas."
-                         : "Aucun créneau ne permet d'atteindre l'objectif aujourd'hui. "
-                           + "Une sortie reste bénéfique, mais le rendement sera faible.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-            } else {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Quand sortir")
-                        .font(.system(size: 22, weight: .regular, design: .serif))
-                        .foregroundStyle(Theme.onSky)
-                        .padding(.horizontal, 4)
-
-                    // Dans l'ordre de la journée, non par mérite : c'est ainsi
-                    // qu'on décide entre ce matin et après le dîner. Le meilleur
-                    // créneau reste signalé par sa teinte et son étiquette.
-                    ForEach(plan.chronologicalRecommendations) { item in
-                        RecommendationCard(recommendation: item,
-                                           timeZone: plan.timeZone,
-                                           isPrimary: item.id == plan.bestRecommendation?.id)
-                    }
-                }
-            }
-        }
     }
 
     private func dayFacts(_ plan: DayPlan) -> some View {

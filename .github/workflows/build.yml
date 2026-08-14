@@ -108,7 +108,7 @@ jobs:
           # Montréal, pour que les chiffres affichés soient ceux d'un lieu réel.
           LIEU="45.5019,-73.5674,Montréal"
 
-          for onglet in today session history profile; do
+          for onglet in today sleep history profile; do
             xcrun simctl terminate "$UDID" "$BUNDLE" 2>/dev/null || true
             # `-vdInstant midi` place l'horloge au midi solaire du lieu : sans
             # cela, la capture est prise à l'heure où le serveur veut bien

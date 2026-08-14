@@ -4,6 +4,11 @@ struct ProfileView: View {
 
     @Environment(AppModel.self) private var model
     @State private var showsClothing = false
+    /// Poids et taille sont saisis en texte plutôt que liés au profil : lier
+    /// directement écrirait « 7 kg » le temps de taper « 70 ».
+    @State private var weightText = ""
+    @State private var heightText = ""
+    @State private var hasSeededMorphology = false
     /// Les deux entrées — « revoir la présentation » et « refaire le
     /// questionnaire » — ouvrent le même écran, qui commence par les pages
     /// d'explication et finit par le phototype.
@@ -87,6 +92,27 @@ struct ProfileView: View {
                 }
 
                 Section {
+                    morphologyField("Poids", unit: "kg", text: $weightText)
+                    morphologyField("Taille", unit: "cm", text: $heightText)
+
+                    if let bmi = VitaminDTarget.bodyMassIndex(
+                        weightKilograms: model.profile.weightKilograms,
+                        heightCentimetres: model.profile.heightCentimetres) {
+                        LabeledContent("Indice de masse corporelle",
+                                       value: String(format: "%.1f", bmi))
+                    }
+                } header: {
+                    Text("Morphologie")
+                } footer: {
+                    Text("""
+                    Facultatif, et sans effet sur les durées d'exposition : la synthèse \
+                    dépend de la surface de peau découverte, pas de la masse. Ces deux \
+                    mesures ne servent qu'à suggérer un objectif quotidien, parce que la \
+                    vitamine D est liposoluble et se dilue dans la masse grasse.
+                    """)
+                }
+
+                Section {
                     Stepper(value: $model.profile.dailyGoalIU, in: 400...4000, step: 100) {
                         HStack {
                             Text("Objectif quotidien")
@@ -97,6 +123,8 @@ struct ProfileView: View {
                         }
                     }
 
+                    suggestionRow
+
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
                             Text("Seuil d'alerte cutanée")
@@ -106,13 +134,24 @@ struct ProfileView: View {
                                 .monospacedDigit()
                         }
                         Slider(value: $model.profile.burnAlertFraction, in: 0.3...0.9, step: 0.05)
+                        Text(burnThresholdSentence)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 } header: {
                     Text("Objectifs")
                 } footer: {
-                    Text("L'alerte se déclenche à cette fraction de votre dose érythémale "
-                         + "minimale. En rester bien en dessous ne coûte presque rien : la "
-                         + "synthèse plafonne largement avant la rougeur.")
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("""
+                        L'objectif est une cible de synthèse cutanée, exprimée dans la même \
+                        unité que les apports alimentaires de référence pour pouvoir s'y \
+                        comparer. Le seuil d'alerte, lui, est la fraction de votre dose \
+                        érythémale minimale à laquelle l'application vous demande de \
+                        rentrer : en rester bien en dessous ne coûte presque rien, puisque \
+                        la synthèse plafonne largement avant la rougeur.
+                        """)
+                        MedicalNotice(isCompact: true)
+                    }
                 }
 
                 Section("Alertes") {
@@ -209,13 +248,37 @@ struct ProfileView: View {
 
                 Section {
                     NavigationLink("Méthode et limites") { MethodologyView() }
+                    NavigationLink("Sur quoi reposent ces chiffres") { EvidenceView() }
                 } footer: {
-                    Text("Cette application n'est pas un dispositif médical. Les durées "
-                         + "affichées sont des ordres de grandeur : la réponse cutanée varie "
-                         + "d'un facteur deux à trois entre individus de même phototype.")
+                    Text("""
+                    Cette application n'est pas un dispositif médical et ne pose aucun \
+                    diagnostic. Elle applique à un modèle des données publiées — apports \
+                    de référence de Santé Canada et de l'Institute of Medicine, \
+                    photobiologie cutanée, position du Soleil — et ne mesure rien dans \
+                    votre sang.
+
+                    Les durées affichées sont des ordres de grandeur : la réponse cutanée \
+                    varie d'un facteur deux à trois entre individus de même phototype. \
+                    L'avis de votre médecin prime sur tout ce qui est affiché ici, sans \
+                    exception — et il est nécessaire si vous prenez un traitement \
+                    photosensibilisant, souffrez d'une maladie de peau ou avez un \
+                    antécédent de cancer cutané.
+                    """)
                 }
             }
             .navigationTitle("Profil")
+            .task {
+                guard !hasSeededMorphology else { return }
+                hasSeededMorphology = true
+                weightText = MeasurementField.text(from: model.profile.weightKilograms)
+                heightText = MeasurementField.text(from: model.profile.heightCentimetres)
+            }
+            .onChange(of: weightText) { _, new in
+                model.profile.weightKilograms = MeasurementField.value(from: new)
+            }
+            .onChange(of: heightText) { _, new in
+                model.profile.heightCentimetres = MeasurementField.value(from: new)
+            }
             .sheet(isPresented: $showsClothing) {
                 ClothingView(exposure: $model.profile.exposure)
             }
@@ -223,6 +286,63 @@ struct ProfileView: View {
                 OnboardingView(isReview: true)
             }
         }
+    }
+
+    // MARK: - Morphologie et objectif
+
+    private func morphologyField(_ label: String,
+                                 unit: String,
+                                 text: Binding<String>) -> some View {
+        HStack {
+            Text(label)
+            Spacer()
+            TextField("—", text: text)
+                .keyboardType(.decimalPad)
+                .multilineTextAlignment(.trailing)
+                .monospacedDigit()
+                .frame(maxWidth: 90)
+            Text(unit)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    /// Ce que la littérature suggère, et pourquoi.
+    ///
+    /// Affiché en permanence plutôt qu'imposé : l'objectif reste celui de
+    /// l'utilisateur, mais il ne devrait pas avoir à deviner d'où sortent les
+    /// mille unités par défaut.
+    private var suggestionRow: some View {
+        let suggestion = model.profile.suggestedGoal
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label("Suggestion", systemImage: "text.book.closed")
+                    .font(.subheadline.weight(.medium))
+                Spacer()
+                Text(Format.iu(suggestion.dailyIU))
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(Theme.vitaminD)
+            }
+
+            Text(VitaminDTarget.rationale(for: suggestion, age: model.profile.age))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if model.profile.goalDivergesFromSuggestion {
+                Button("Adopter \(Format.iu(suggestion.dailyIU))") {
+                    model.profile.dailyGoalIU = suggestion.dailyIU
+                }
+                .font(.caption.weight(.medium))
+            }
+        }
+    }
+
+    private var burnThresholdSentence: String {
+        let percent = Format.percent(model.profile.burnAlertFraction)
+        return "L'alerte tombe à \(percent) de la dose qui rougirait votre peau. "
+            + "La synthèse, elle, plafonne bien avant : au-delà, on dépense du "
+            + "capital cutané sans plus rien produire."
     }
 
     private var dailyPlanTime: Binding<Date> {

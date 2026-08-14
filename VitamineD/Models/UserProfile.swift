@@ -13,6 +13,16 @@ struct UserProfile: Codable, Equatable, Sendable {
     /// phototype fixé.
     var ancestry: Ancestry?
 
+    /// Poids en kilogrammes, facultatif.
+    ///
+    /// N'entre dans aucun calcul de dose : la synthèse cutanée dépend de la
+    /// surface de peau et non de la masse. Le poids et la taille ne servent
+    /// qu'à suggérer un objectif quotidien, parce que la vitamine D est
+    /// liposoluble et se dilue dans la masse grasse.
+    var weightKilograms: Double?
+    /// Taille en centimètres, facultative. Même usage que le poids.
+    var heightCentimetres: Double?
+
     /// Objectif quotidien de synthèse cutanée, en UI.
     var dailyGoalIU: Double
 
@@ -70,6 +80,8 @@ struct UserProfile: Codable, Equatable, Sendable {
         tanLevel: .none,
         exposure: BodyExposure(),
         ancestry: nil,
+        weightKilograms: nil,
+        heightCentimetres: nil,
         dailyGoalIU: 1000,
         burnAlertFraction: 0.6,
         notifyWindowOpening: true,
@@ -120,6 +132,8 @@ struct UserProfile: Codable, Equatable, Sendable {
         tanLevel = (try? container.decode(TanLevel.self, forKey: .tanLevel)) ?? fallback.tanLevel
         exposure = (try? container.decode(BodyExposure.self, forKey: .exposure)) ?? fallback.exposure
         ancestry = try? container.decodeIfPresent(Ancestry.self, forKey: .ancestry)
+        weightKilograms = try? container.decodeIfPresent(Double.self, forKey: .weightKilograms)
+        heightCentimetres = try? container.decodeIfPresent(Double.self, forKey: .heightCentimetres)
         dailyGoalIU = (try? container.decode(Double.self, forKey: .dailyGoalIU)) ?? fallback.dailyGoalIU
         burnAlertFraction = (try? container.decode(Double.self, forKey: .burnAlertFraction))
             ?? fallback.burnAlertFraction
@@ -157,6 +171,8 @@ struct UserProfile: Codable, Equatable, Sendable {
          tanLevel: TanLevel,
          exposure: BodyExposure,
          ancestry: Ancestry?,
+         weightKilograms: Double? = nil,
+         heightCentimetres: Double? = nil,
          dailyGoalIU: Double,
          burnAlertFraction: Double,
          notifyWindowOpening: Bool,
@@ -176,6 +192,8 @@ struct UserProfile: Codable, Equatable, Sendable {
         self.tanLevel = tanLevel
         self.exposure = exposure
         self.ancestry = ancestry
+        self.weightKilograms = weightKilograms
+        self.heightCentimetres = heightCentimetres
         self.dailyGoalIU = dailyGoalIU
         self.burnAlertFraction = burnAlertFraction
         self.notifyWindowOpening = notifyWindowOpening
@@ -194,4 +212,21 @@ struct UserProfile: Codable, Equatable, Sendable {
 
     /// Le lever visé diffère-t-il de l'habituel ?
     var wantsPhaseShift: Bool { targetWakeMinuteOfDay != wakeMinuteOfDay }
+
+    // MARK: - Objectif
+
+    /// Objectif quotidien que la littérature suggère pour ce profil.
+    var suggestedGoal: VitaminDTarget.Suggestion {
+        VitaminDTarget.suggestion(age: age,
+                                  weightKilograms: weightKilograms,
+                                  heightCentimetres: heightCentimetres)
+    }
+
+    /// L'objectif retenu s'écarte-t-il nettement de la suggestion ?
+    ///
+    /// La tolérance vaut un cran du réglage : signaler un écart de cent unités
+    /// serait du bruit, et l'utilisateur a le droit de choisir sa valeur.
+    var goalDivergesFromSuggestion: Bool {
+        abs(dailyGoalIU - suggestedGoal.dailyIU) > 100
+    }
 }

@@ -13,7 +13,7 @@ enum LaunchOptions {
 
     /// `-vdLieu "45.5019,-73.5674,Montréal"`
     static let locationKey = "-vdLieu"
-    /// `-vdOnglet today|session|sleep|history|profile`
+    /// `-vdOnglet today|sleep|history|profile`
     static let tabKey = "-vdOnglet"
 
     private static func value(for key: String) -> String? {

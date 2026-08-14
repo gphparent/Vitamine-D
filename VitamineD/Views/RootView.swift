@@ -21,12 +21,17 @@ struct RootView: View {
     /// laissait croire que la lumière du matin sert à la vitamine D. C'est le
     /// contraire : à cette heure-là le Soleil est trop bas pour le moindre UVB,
     /// et c'est justement l'horloge interne qu'elle règle.
+    ///
+    /// La sortie, en revanche, n'a jamais mérité son onglet : il répétait la
+    /// moitié de l'écran principal — mêmes barres, même tenue, même météo — à
+    /// deux endroits qui pouvaient se contredire. Elle est revenue là où la
+    /// décision se prend. `session` reste accepté au lancement pour les
+    /// captures d'écran de l'intégration continue, et mène à l'écran principal.
     enum Tab: Hashable {
-        case today, session, sleep, history, profile
+        case today, sleep, history, profile
 
         init(launchArgument: String?) {
             switch launchArgument {
-            case "session":  self = .session
             case "sleep":    self = .sleep
             case "history":  self = .history
             case "profile":  self = .profile
@@ -40,10 +45,6 @@ struct RootView: View {
             TodayView()
                 .tabItem { Label("Vitamine D", systemImage: "sun.max") }
                 .tag(Tab.today)
-
-            SessionView()
-                .tabItem { Label("Sortie", systemImage: "figure.walk") }
-                .tag(Tab.session)
                 .badge(model.isSessionActive ? Text("•") : nil)
 
             NavigationStack { CircadianView() }
@@ -71,7 +72,9 @@ struct RootView: View {
             }
         }
         .onChange(of: model.isSessionActive) { _, active in
-            if active { selection = .session }
+            // Le suivi en direct s'affiche sur l'écran principal : on y ramène
+            // qui aurait démarré une sortie depuis un autre onglet.
+            if active { selection = .today }
         }
         .fullScreenCover(isPresented: onboarding) { OnboardingView() }
     }

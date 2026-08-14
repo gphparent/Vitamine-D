@@ -404,4 +404,95 @@ struct DayPlannerTests {
         #expect(DayPlanner.simulateSession(
             startingAt: 0, samples: summer.samples, profile: .default) == nil)
     }
+
+    // MARK: - Sortir maintenant, ou plus tard
+
+    @Test("Au petit matin, sortir maintenant est possible mais attendre vaut mieux")
+    func earlyMorningPrefersWaiting() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = montreal
+        let summer = plan(on: day(2026, 6, 21))
+        let morning = try #require(calendar.date(
+            bySettingHour: 7, minute: 0, second: 0, of: day(2026, 6, 21)))
+
+        let options = DayPlanner.outingOptions(
+            plan: summer, at: morning, profile: .default)
+
+        let later = try #require(options.later)
+        #expect(later.start > morning)
+        // Le meilleur créneau restant se place vers le haut de la course du
+        // Soleil, où le rapport vitamine D / capital cutané culmine.
+        #expect(abs(later.start.timeIntervalSince(summer.solarNoon)) < 4 * 3600)
+
+        if let immediate = options.immediate {
+            #expect(immediate.score <= later.score)
+        }
+    }
+
+    @Test("Au midi solaire, sortir maintenant l'emporte")
+    func solarNoonPrefersNow() throws {
+        let summer = plan(on: day(2026, 6, 21))
+        let options = DayPlanner.outingOptions(
+            plan: summer, at: summer.solarNoon, profile: .default)
+
+        let immediate = try #require(options.immediate)
+        #expect(immediate.reachesGoal)
+        #expect(!options.laterIsBetter)
+    }
+
+    @Test("Le créneau « plus tard » est franchement distinct de maintenant")
+    func laterOptionIsNotAlmostNow() throws {
+        let summer = plan(on: day(2026, 6, 21))
+        let start = summer.solarNoon.addingTimeInterval(-3 * 3600)
+        let options = DayPlanner.outingOptions(plan: summer, at: start, profile: .default)
+
+        let later = try #require(options.later)
+        #expect(later.start.timeIntervalSince(start) >= DayPlanner.laterOptionDelay)
+    }
+
+    @Test("Le soir venu, il ne reste plus rien à proposer")
+    func eveningHasNoOptionLeft() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = montreal
+        let summer = plan(on: day(2026, 6, 21))
+        let evening = try #require(calendar.date(
+            bySettingHour: 22, minute: 0, second: 0, of: day(2026, 6, 21)))
+
+        let options = DayPlanner.outingOptions(
+            plan: summer, at: evening, profile: .default)
+        #expect(options.immediate == nil)
+        #expect(options.later == nil)
+        #expect(!options.laterIsBetter)
+    }
+
+    @Test("Un hiver vitaminique ne propose aucune des deux options")
+    func vitaminDWinterOffersNothing() {
+        let winter = plan(on: day(2026, 12, 21))
+        let options = DayPlanner.outingOptions(
+            plan: winter, at: winter.solarNoon, profile: .default)
+
+        #expect(winter.isVitaminDWinter)
+        #expect(options.immediate == nil)
+        #expect(options.later == nil)
+    }
+
+    @Test("Bien couvert sous un Soleil d'été, la limite cutanée arrive avant l'objectif")
+    func heavyClothingBurnsBeforeTheGoal() throws {
+        // Une peau très claire, presque entièrement couverte : la surface
+        // découverte ne suffit pas à atteindre l'objectif avant que la dose
+        // érythémale ne s'accumule. C'est exactement le cas que le triangle
+        // d'alerte doit signaler.
+        var profile = UserProfile.default
+        profile.skinType = .i
+        profile.exposure.preset = .longSleevesTrousers
+        profile.dailyGoalIU = 4000
+
+        let summer = plan(on: day(2026, 6, 21), profile: profile)
+        let options = DayPlanner.outingOptions(
+            plan: summer, at: summer.solarNoon, profile: profile)
+
+        let immediate = try #require(options.immediate)
+        #expect(!immediate.reachesGoal)
+        #expect(immediate.limitingFactor == .burnRisk)
+    }
 }
