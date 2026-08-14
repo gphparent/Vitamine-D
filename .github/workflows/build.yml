@@ -3,11 +3,28 @@ name: Compilation et tests
 # Les exécuteurs macOS de GitHub fournissent le Mac que le projet exige.
 # Gratuit sur un dépôt public ; sur un dépôt privé, les minutes macOS sont
 # décomptées au tarif ×10 du quota mensuel.
+#
+# Ordre de grandeur : un cycle complet coûte environ neuf minutes de Mac,
+# soit quatre-vingt-dix minutes de quota. Le forfait gratuit en accorde deux
+# mille par mois, c'est-à-dire deux cycles complets. D'où les économies
+# ci-dessous, et l'usage de `[skip ci]` dans un message de commit pour ne rien
+# déclencher du tout.
 on:
   push:
     branches: ["**"]
-  pull_request:
+    # Une correction de documentation n'a jamais cassé une compilation.
+    paths-ignore:
+      - "**.md"
+      - "LICENSE"
+      - ".gitignore"
+      - "Tools/**"
   workflow_dispatch:
+
+# Deux poussées coup sur coup ne justifient pas deux compilations : la
+# précédente est abandonnée dès que la suivante arrive.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -17,17 +34,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Environnement
-        run: |
-          xcodebuild -version
-          echo "--- simulateurs iOS disponibles ---"
-          xcrun simctl list devices available | grep -A 20 "iOS" | head -30
-
       - name: Choisir un simulateur
         id: sim
         run: |
           # On prend le premier iPhone disponible plutôt qu'un modèle codé en
           # dur : le catalogue des images GitHub change à chaque mise à jour.
+          xcodebuild -version
           NAME=$(xcrun simctl list devices available \
                  | grep -oE 'iPhone [0-9]+[A-Za-z ]*' | head -1 | xargs)
           echo "Simulateur retenu : $NAME"
@@ -196,6 +208,11 @@ jobs:
   testflight:
     name: Publier sur TestFlight
     runs-on: macos-latest
+    # Attend le résultat des tests plutôt que de courir en parallèle. On y perd
+    # trois minutes d'horloge quand tout va bien, et on économise un exécuteur
+    # entier quand la compilation casse — ce qui est arrivé trois fois de suite
+    # en août, chaque fois pour la même erreur.
+    needs: test
     # Sur demande : chaque téléversement crée une version chez Apple, et rien
     # n'oblige à en produire une à chaque commit.
     if: >-
