@@ -251,6 +251,69 @@ struct UVEngineTests {
         #expect(!hatted.exposedRegions.contains(.face))
     }
 
+    // MARK: - Étoffe
+
+    @Test("L'étoffe se classe du plus opaque au plus transparent")
+    func fabricsAreOrdered() {
+        let order: [Fabric] = [.dense, .standard, .light, .sheer]
+        let values = order.map(\.transmission)
+        #expect(values == values.sorted())
+        #expect(values.allSatisfy { $0 > 0 && $0 < 1 })
+        // Un jean dépasse UPF 50, un voile tombe sous 4.
+        #expect(Fabric.dense.upf > 50)
+        #expect(Fabric.sheer.upf < 4)
+    }
+
+    @Test("Une étoffe fine laisse produire davantage, sans avancer la rougeur")
+    func fabricRaisesSynthesisButNotTheBurn() {
+        // Le point que l'écran doit rendre : sous des manches longues, changer
+        // de tissu déplace la vitamine D de plus du double, alors que l'heure du
+        // coup de soleil ne bouge pas d'une minute — elle se joue sur le visage
+        // et les mains, que rien ne recouvre.
+        var dense = profile(exposedFraction: .longSleevesTrousers)
+        dense.exposure.fabric = .dense
+        var sheer = profile(exposedFraction: .longSleevesTrousers)
+        sheer.exposure.fabric = .sheer
+
+        let denseRates = UVEngine.rates(profile: dense, uvIndex: 8, solarElevation: 60)
+        let sheerRates = UVEngine.rates(profile: sheer, uvIndex: 8, solarElevation: 60)
+
+        #expect(sheerRates.vitaminDIUPerMinute > denseRates.vitaminDIUPerMinute * 2)
+        #expect(sheerRates.medFractionPerMinute == denseRates.medFractionPerMinute)
+        #expect(sheerRates.erythemalJoulesPerMinute == denseRates.erythemalJoulesPerMinute)
+
+        // Le plafond suit la même surface équivalente : le rapport entre les
+        // deux ne dépend donc pas de l'étoffe, exactement comme il ne dépend
+        // pas de la tenue.
+        let denseRatio = denseRates.vitaminDIUPerMinute / UVEngine.synthesisCeiling(profile: dense)
+        let sheerRatio = sheerRates.vitaminDIUPerMinute / UVEngine.synthesisCeiling(profile: sheer)
+        #expect(abs(denseRatio - sheerRatio) < 1e-9)
+    }
+
+    @Test("La crème solaire ne s'applique qu'à la peau nue")
+    func sunscreenOnlyCoversBareSkin() {
+        // Personne n'étale de crème sous ses vêtements : la peau couverte
+        // continue de recevoir ce que l'étoffe laisse passer, crème ou non.
+        var bare = profile(exposedFraction: .longSleevesTrousers)
+        bare.exposure.fabric = .standard
+        var creamed = bare
+        creamed.exposure.sunscreenSPF = 50
+
+        let bareRates = UVEngine.rates(profile: bare, uvIndex: 9, solarElevation: 60)
+        let creamedRates = UVEngine.rates(profile: creamed, uvIndex: 9, solarElevation: 60)
+
+        #expect(creamedRates.vitaminDIUPerMinute < bareRates.vitaminDIUPerMinute)
+        #expect(creamedRates.medFractionPerMinute < bareRates.medFractionPerMinute)
+
+        // La part passant par l'étoffe subsiste : la crème ne peut pas tout
+        // couper, même à IP 50 sur un dixième de corps découvert.
+        let throughFabric = (1 - bare.exposure.exposedBodyFraction)
+            * Fabric.standard.transmission
+        #expect(creamedRates.vitaminDIUPerMinute
+                > bareRates.vitaminDIUPerMinute
+                * throughFabric / bare.exposure.effectiveExposedFraction * 0.99)
+    }
+
     @Test("La part éclairée n'agit que sur la synthèse")
     func illuminatedShareLeavesErythemaAlone() {
         let whole = UVEngine.rates(profile: .default, uvIndex: 8, solarElevation: 60)

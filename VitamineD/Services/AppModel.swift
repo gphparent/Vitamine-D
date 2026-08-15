@@ -174,8 +174,12 @@ final class AppModel {
         return light.window.end > now
     }
 
-    /// Charge photochimique restante à l'instant présent.
-    var carriedLoad: Double { photosaturation.load(at: now) }
+    /// Charge photochimique restante à l'instant présent, en UI brutes.
+    ///
+    /// La conversion depuis la saturation conservée se fait avec la tenue du
+    /// moment, ce qui est correct : plus on découvre de peau, plus la charge
+    /// héritée se dilue sur une surface fraîche.
+    var carriedLoad: Double { photosaturation.rawLoad(at: now, profile: profile) }
 
     /// Charge que la peau portait au moment où la sortie en cours a commencé.
     ///
@@ -186,7 +190,8 @@ final class AppModel {
     /// compterait la sortie deux fois.
     private var carriedAtSessionStart: Double {
         guard let session = activeSession else { return carriedLoad }
-        return photosaturation.load(at: session.startDate)
+        return photosaturation.rawLoad(at: session.startDate,
+                                       profile: session.profile(at: session.startDate))
     }
 
     /// Rendement que rapporterait la première minute d'une nouvelle sortie.
@@ -194,7 +199,17 @@ final class AppModel {
     /// Vaut 1 sur une peau reposée, et d'autant moins que la dernière sortie
     /// est récente et généreuse.
     var restingMarginalYield: Double {
-        photosaturation.marginalYield(at: now, profile: profile)
+        photosaturation.marginalYield(at: now)
+    }
+
+    /// Fin de la dernière sortie enregistrée, s'il y en a une.
+    ///
+    /// Sert à dater la charge résiduelle : « votre peau est encore chargée »
+    /// sans dire de quand laisse croire à un défaut d'affichage quand on n'est
+    /// pas sorti de la journée. La demi-vie étant de douze heures, une sortie
+    /// de la veille au soir compte encore le lendemain matin.
+    var lastSessionEnd: Date? {
+        history.first?.end
     }
 
     // MARK: - Hiver
@@ -559,7 +574,8 @@ final class AppModel {
         // saturation, et non à 100 % de rendement comme si rien ne s'était
         // passé.
         photosaturation.deposit(rawIU: progress.rawVitaminDIU,
-                                at: session.endDate ?? now)
+                                at: session.endDate ?? now,
+                                profile: session.profile(at: session.endDate ?? now))
         store.save(photosaturation, for: .photosaturation)
 
         activeSession = nil

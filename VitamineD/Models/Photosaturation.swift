@@ -43,41 +43,79 @@ struct Photosaturation: Codable, Equatable, Sendable {
     /// Demi-vie de la charge photochimique, en heures.
     static let halfLifeHours = 12.0
 
-    /// Dose brute encore en place, dans la même unité que `rawVitaminDIU` :
-    /// des UI d'avant plafonnement.
-    private(set) var rawLoad: Double
+    /// Charge **sans dimension** : la dose déposée rapportée au plafond de la
+    /// peau qui l'a reçue.
+    ///
+    /// Le choix de l'unité n'est pas un détail d'implémentation, c'est une
+    /// correction de bogue. La charge était auparavant conservée en UI brutes,
+    /// pour tout le corps, et le rendement se calculait en la divisant par le
+    /// plafond de la tenue *du moment*. Or ce plafond dépend de la surface
+    /// découverte : enfiler un manteau le faisait chuter, et le rendement
+    /// affiché s'effondrait sans que rien n'ait changé dans la peau.
+    ///
+    /// Le photo-équilibre s'installe dans un morceau de peau, et il ne sait
+    /// rien de ce qu'on porte par-dessus. La grandeur conservée est donc la
+    /// saturation de ce morceau — une proportion, invariante par changement de
+    /// tenue. La conversion en UI brutes, dont le moteur a besoin, se fait au
+    /// moment de l'emploi avec le plafond en vigueur.
+    private(set) var saturation: Double
     private(set) var updatedAt: Date
 
-    static let empty = Photosaturation(rawLoad: 0, updatedAt: .distantPast)
+    static let empty = Photosaturation(saturation: 0, updatedAt: .distantPast)
 
-    init(rawLoad: Double = 0, updatedAt: Date = .distantPast) {
-        self.rawLoad = max(0, rawLoad)
+    init(saturation: Double = 0, updatedAt: Date = .distantPast) {
+        self.saturation = max(0, saturation)
         self.updatedAt = updatedAt
     }
 
-    /// Charge restante à un instant donné.
+    /// Saturation restante à un instant donné, de 0 à l'infini.
     func load(at date: Date) -> Double {
         let hours = date.timeIntervalSince(updatedAt) / 3600
-        guard hours > 0 else { return rawLoad }
+        guard hours > 0 else { return saturation }
         // Au-delà de quelques jours, la décroissance a tout emporté et le
         // calcul flotte inutilement près de zéro.
         guard hours < 30 * 24 else { return 0 }
-        return rawLoad * pow(0.5, hours / Self.halfLifeHours)
+        return saturation * pow(0.5, hours / Self.halfLifeHours)
+    }
+
+    /// Charge exprimée en UI brutes pour un profil donné, telle que le moteur
+    /// l'attend.
+    func rawLoad(at date: Date, profile: UserProfile) -> Double {
+        load(at: date) * UVEngine.synthesisCeiling(profile: profile)
     }
 
     /// Verse la dose brute d'une sortie qui vient de s'achever.
     ///
+    /// La normalisation se fait ici, avec la tenue portée pendant la sortie :
+    /// c'est elle qui a déterminé quelle peau a reçu quoi.
+    ///
     /// La dose est déposée d'un coup à la fin, alors qu'elle s'est accumulée
     /// tout au long de la sortie. L'écart est négligeable : une sortie dure au
     /// plus une heure ou deux, contre douze heures de demi-vie.
-    mutating func deposit(rawIU: Double, at date: Date) {
+    mutating func deposit(rawIU: Double, at date: Date, profile: UserProfile) {
         guard rawIU > 0 else { return }
-        rawLoad = load(at: date) + rawIU
+        let ceiling = UVEngine.synthesisCeiling(profile: profile)
+        saturation = load(at: date) + rawIU / max(1, ceiling)
         updatedAt = date
     }
 
-    /// Fraction du rendement encore disponible, de 0 à 1, pour un profil donné.
-    func marginalYield(at date: Date, profile: UserProfile) -> Double {
-        UVEngine.marginalYield(rawIU: load(at: date), profile: profile)
+    /// Fraction du rendement encore disponible, de 0 à 1.
+    ///
+    /// Ne dépend d'aucun profil, et c'est tout l'intérêt : la peau chargée
+    /// l'est autant sous un manteau que sous un maillot de bain.
+    func marginalYield(at date: Date) -> Double {
+        exp(-load(at: date))
+    }
+
+    // MARK: - Décodage
+
+    /// Une charge enregistrée par une version antérieure était exprimée en UI
+    /// brutes, dans une unité que celle-ci ne sait plus interpréter. On repart
+    /// de zéro plutôt que de lire un chiffre pour un autre : la charge se
+    /// dissipe de moitié en douze heures, l'oubli ne coûte donc qu'une journée.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        saturation = (try? container.decode(Double.self, forKey: .saturation)) ?? 0
+        updatedAt = (try? container.decode(Date.self, forKey: .updatedAt)) ?? .distantPast
     }
 }

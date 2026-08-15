@@ -141,6 +141,9 @@ struct PhototypeEstimatorTests {
         #expect(profile.age == 42)
         #expect(profile.dailyGoalIU == 2500)
         #expect(profile.exposure.sunscreenSPF == 30)
+        // L'étoffe n'existait pas dans ce format : la tenue enregistrée en
+        // suggère une plutôt que de faire échouer la relecture du profil entier.
+        #expect(profile.exposure.fabric == ClothingPreset.swimwear.suggestedFabric)
         #expect(profile.burnAlertFraction == 0.45)
         // Quelqu'un qui a déjà un profil enregistré n'a pas à repasser
         // par l'accueil.

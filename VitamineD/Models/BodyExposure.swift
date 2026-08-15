@@ -122,6 +122,18 @@ enum ClothingPreset: String, CaseIterable, Codable, Identifiable, Sendable {
         }
     }
 
+    /// Étoffe à supposer sur la peau couverte, quand l'utilisateur ne dit rien.
+    ///
+    /// Un manteau d'hiver n'est pas un t-shirt : le proposer d'emblée évite
+    /// d'annoncer, sous une doudoune, la synthèse d'une chemise de lin.
+    var suggestedFabric: Fabric {
+        switch self {
+        case .coat:     return .dense
+        case .swimwear: return .light
+        default:        return .standard
+        }
+    }
+
     /// Régions découvertes.
     ///
     /// Deux conventions valent d'être explicitées. Le cuir chevelu n'est jamais
@@ -149,11 +161,69 @@ enum ClothingPreset: String, CaseIterable, Codable, Identifiable, Sendable {
     }
 }
 
-/// État d'exposition du corps : quelles régions sont découvertes, et quelle
-/// protection solaire les recouvre.
+/// Étoffe portée sur la peau couverte, classée par ce qu'elle laisse passer.
+///
+/// Un vêtement n'est pas un écran. Les valeurs correspondent aux facteurs de
+/// protection vestimentaire (UPF) mesurés en laboratoire : un jean ou une laine
+/// serrée dépassent UPF 50, un coton d'été ordinaire tourne autour de 20, un
+/// tissu clair à maille lâche descend vers 7, et un voile ou un vêtement mouillé
+/// tombe sous 4 — un t-shirt blanc trempé ne protège pratiquement plus.
+///
+/// L'étoffe n'intervient que du côté de la synthèse. Le calcul de la rougeur
+/// reste conduit sur la peau nue, qui rougit la première : c'est elle qui fixe
+/// le moment où il faut rentrer, et aucune étoffe ne l'avance.
+enum Fabric: String, CaseIterable, Codable, Identifiable, Sendable {
+    /// Denim, laine serrée, tissu foncé, double épaisseur.
+    case dense
+    /// Coton d'été ordinaire, la valeur par défaut.
+    case standard
+    /// Lin clair, maille lâche, blanc fin.
+    case light
+    /// Voile, mousseline, tissu mouillé ou distendu.
+    case sheer
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .dense:    return "Dense ou foncé"
+        case .standard: return "Coton ordinaire"
+        case .light:    return "Léger ou clair"
+        case .sheer:    return "Voile ou mouillé"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .dense:    return "Denim, laine, tissu foncé serré"
+        case .standard: return "Coton d'été, jersey moyen"
+        case .light:    return "Lin clair, maille lâche, blanc fin"
+        case .sheer:    return "Mousseline, tissu mouillé ou distendu"
+        }
+    }
+
+    /// Part du rayonnement UV que l'étoffe laisse atteindre la peau.
+    var transmission: Double {
+        switch self {
+        case .dense:    return 0.01
+        case .standard: return 0.05
+        case .light:    return 0.15
+        case .sheer:    return 0.30
+        }
+    }
+
+    /// Indice de protection vestimentaire correspondant, tel qu'il figure sur
+    /// les étiquettes.
+    var upf: Int { Int((1 / transmission).rounded()) }
+}
+
+/// État d'exposition du corps : quelles régions sont découvertes, ce qui
+/// recouvre les autres, et quelle protection solaire s'y ajoute.
 struct BodyExposure: Codable, Equatable, Sendable {
     var preset: ClothingPreset
     var customRegions: Set<BodyRegion>
+    /// Étoffe supposée sur toute la peau couverte.
+    var fabric: Fabric
     /// Indice de protection du produit solaire appliqué (1 = aucun).
     var sunscreenSPF: Int
     /// Le chapeau ou la casquette soustrait le visage et une partie du cou au
@@ -162,12 +232,30 @@ struct BodyExposure: Codable, Equatable, Sendable {
 
     init(preset: ClothingPreset = .tShirtShorts,
          customRegions: Set<BodyRegion>? = nil,
+         fabric: Fabric? = nil,
          sunscreenSPF: Int = 1,
          wearsHat: Bool = false) {
         self.preset = preset
         self.customRegions = customRegions ?? preset.exposedRegions
+        self.fabric = fabric ?? preset.suggestedFabric
         self.sunscreenSPF = sunscreenSPF
         self.wearsHat = wearsHat
+    }
+
+    /// Une tenue enregistrée avant l'arrivée de l'étoffe n'en porte pas trace :
+    /// on retient alors celle que la tenue suggère, plutôt que d'échouer à
+    /// relire tout un profil pour un champ absent.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let preset = try container.decode(ClothingPreset.self, forKey: .preset)
+        self.preset = preset
+        self.customRegions = (try? container.decode(Set<BodyRegion>.self,
+                                                    forKey: .customRegions))
+            ?? preset.exposedRegions
+        self.fabric = (try? container.decode(Fabric.self, forKey: .fabric))
+            ?? preset.suggestedFabric
+        self.sunscreenSPF = (try? container.decode(Int.self, forKey: .sunscreenSPF)) ?? 1
+        self.wearsHat = (try? container.decode(Bool.self, forKey: .wearsHat)) ?? false
     }
 
     /// Somme des pourcentages bruts de toutes les régions du corps.
@@ -195,6 +283,21 @@ struct BodyExposure: Codable, Equatable, Sendable {
 
     var exposedBodyPercentage: Double { exposedBodyFraction * 100 }
 
+    /// Surface équivalente pour la synthèse : la peau nue, plus la peau couverte
+    /// comptée à hauteur de ce que l'étoffe laisse passer.
+    ///
+    /// La peau couverte représente presque toujours l'essentiel du corps. Même à
+    /// 5 % de transmission, les 90 % de peau sous un vêtement d'été pèsent
+    /// autant qu'un dixième de corps nu — c'est pourquoi une femme entièrement
+    /// vêtue produit moins de vitamine D, mais pas zéro.
+    ///
+    /// Cette grandeur ne sert qu'à la vitamine D. La dose érythémale se mesure
+    /// sur la peau la plus découverte, celle qui rougira la première.
+    var effectiveExposedFraction: Double {
+        let bare = exposedBodyFraction
+        return bare + (1 - bare) * fabric.transmission
+    }
+
     /// Facteur de transmission du produit solaire.
     ///
     /// L'IP est mesuré en laboratoire à 2 mg/cm², une quantité que presque
@@ -211,6 +314,7 @@ struct BodyExposure: Codable, Equatable, Sendable {
     var summary: String {
         let percent = Int(exposedBodyPercentage.rounded())
         var parts = ["\(percent) % de peau exposée"]
+        if fabric != .standard { parts.append(fabric.title.lowercased()) }
         if sunscreenSPF > 1 { parts.append("IP \(sunscreenSPF)") }
         if wearsHat { parts.append("chapeau") }
         return parts.joined(separator: " · ")

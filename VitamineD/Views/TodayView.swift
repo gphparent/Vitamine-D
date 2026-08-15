@@ -15,12 +15,17 @@ struct TodayView: View {
                     } else {
                         ScreenTitle(title: "Vitamine D", subtitle: headerSubtitle)
                             .padding(.bottom, 2)
-                        notices
                         statusCard
+                        // La tenue passe au-dessus de tout ce qui varie avec
+                        // elle. Les avertissements apparaissent et disparaissent
+                        // selon les vêtements choisis : les laisser plus haut
+                        // faisait fuir la rangée de pastilles sous le doigt au
+                        // moment même où l'on tapait dessus.
+                        clothingCard
+                        notices
                         // Puis la seule décision à prendre : sortir maintenant,
                         // ou attendre. Elle vient avant tout ce qui l'explique.
                         OutingSection()
-                        clothingCard
                         if let plan = model.plan {
                             Card { DayChart(plan: plan, now: model.now) }
                             dayFacts(plan)
@@ -133,17 +138,21 @@ struct TodayView: View {
         }
 
         // Sans cette explication, un rendement à 60 % sur une peau qui n'a rien
-        // fait depuis une heure passe pour un défaut d'affichage.
+        // fait depuis une heure passe pour un défaut d'affichage — et sans la
+        // date de la sortie, une charge héritée de la veille passe pour un bogue
+        // les matins où l'on n'est pas encore sorti.
         if model.restingMarginalYield < 0.85, model.plan?.isVitaminDWinter != true {
             NoticeBanner(
                 kind: .info,
                 title: "Peau encore chargée",
-                message: "Votre dernière sortie a laissé la synthèse à "
+                message: lastOutingClause
+                    + "la synthèse repartirait à "
                     + "\(Format.percent(model.restingMarginalYield)) de son rendement. "
                     + "Ce n'est pas un compteur qui se remet à zéro en rentrant : la "
-                    + "prévitamine D3 formée dans la peau met des heures à en repartir. "
-                    + "Une nouvelle sortie coûterait autant de capital cutané pour "
-                    + "nettement moins de vitamine D.")
+                    + "prévitamine D3 formée dans la peau met des heures à en repartir, "
+                    + "et une nuit n'en dissipe que la moitié. Une nouvelle sortie "
+                    + "coûterait autant de capital cutané pour nettement moins de "
+                    + "vitamine D.")
         }
 
         // L'appareil a vu du plein jour que l'application n'a pas compté : c'est
@@ -170,6 +179,23 @@ struct TodayView: View {
         }
     }
 
+    /// Situe dans le temps la sortie qui a laissé la charge, et termine par une
+    /// virgule : la phrase qui suit enchaîne dessus.
+    private var lastOutingClause: String {
+        guard let end = model.lastSessionEnd else {
+            return "Votre peau porte encore une exposition récente, "
+        }
+        let time = Format.time(end, in: model.calendar.timeZone)
+        if model.calendar.isDateInToday(end) {
+            return "Après votre sortie de \(time), "
+        }
+        if model.calendar.isDateInYesterday(end) {
+            return "Après votre sortie d'hier, terminée à \(time), "
+        }
+        return "Après votre sortie du "
+            + "\(Format.shortDate(end, in: model.calendar.timeZone)), "
+    }
+
     private var statusCard: some View {
         Card {
             // Le décompte d'abord : c'est lui qui décide d'une sortie. La jauge
@@ -185,9 +211,15 @@ struct TodayView: View {
                         hasNimbus: true)
 
                 VStack(alignment: .leading, spacing: 8) {
+                    // Deux lignes réservées : « Rendement optimal » tient sur
+                    // une ligne, « Soleil trop bas pour la vitamine D » sur
+                    // deux, et le passage de l'un à l'autre — qu'un simple
+                    // changement de tenue peut provoquer — ne doit pas
+                    // déplacer la carte de la tenue, juste en dessous.
                     Text(statusHeadline)
                         .font(.headline)
                         .foregroundStyle(statusTint)
+                        .lineLimit(2, reservesSpace: true)
 
                     if let position = model.solarPosition {
                         Label(shadowSentence(position), systemImage: "figure.stand")
@@ -274,6 +306,7 @@ struct TodayView: View {
             }
 
             HStack(spacing: 10) {
+                Label(model.profile.exposure.fabric.title, systemImage: "square.grid.3x3")
                 if model.profile.exposure.sunscreenSPF > 1 {
                     Label("IP \(model.profile.exposure.sunscreenSPF)", systemImage: "drop.fill")
                 }
@@ -281,11 +314,12 @@ struct TodayView: View {
                     Text("Chapeau")
                 }
                 Spacer()
-                Button("Détails et protection") { showsClothing = true }
+                Button("Étoffe et protection") { showsClothing = true }
                     .font(.caption.weight(.medium))
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+            .lineLimit(1)
         }
     }
 
@@ -301,6 +335,9 @@ struct TodayView: View {
         return Button {
             var exposure = model.profile.exposure
             exposure.preset = preset
+            // L'étoffe suit la tenue : un manteau est dense, un maillot est
+            // léger. Qui veut un autre tissu le dit dans la feuille de détail.
+            exposure.fabric = preset.suggestedFabric
             // Passe par le modèle plutôt que par le profil : si une sortie est
             // en cours, le changement de tenue doit ouvrir un nouveau segment,
             // sinon la dose déjà accumulée serait recalculée à tort.

@@ -82,6 +82,10 @@ struct ProfileView: View {
                     LabeledContent("Peau exposée",
                                    value: String(format: "%.0f %%",
                                                  model.profile.exposure.exposedBodyPercentage))
+                    LabeledContent("Étoffe", value: model.profile.exposure.fabric.title)
+                    LabeledContent("Surface équivalente",
+                                   value: Format.percent(
+                                    model.profile.exposure.effectiveExposedFraction))
                     if let plan = model.plan {
                         LabeledContent("Maximum aujourd'hui",
                                        value: Format.iu(plan.attainableIU))
@@ -92,6 +96,10 @@ struct ProfileView: View {
                     Text("Exposition")
                 } footer: {
                     Text("""
+                    La surface équivalente ajoute à la peau nue la peau couverte, comptée \
+                    à hauteur de ce que l'étoffe laisse passer. C'est elle, et non la seule \
+                    peau découverte, qui entre dans le calcul de la vitamine D.
+
                     Le maximum du jour est ce que vous obtiendriez en restant dehors au \
                     meilleur moment jusqu'à la rougeur. C'est le chiffre utile.
 

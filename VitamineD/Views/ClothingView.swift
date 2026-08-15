@@ -22,14 +22,33 @@ struct ClothingView: View {
                     Text("""
                     La surface de peau découverte entre directement dans le calcul : \
                     doubler la surface exposée divise par deux le temps nécessaire.
+                    """)
+                }
 
-                    Le calcul suppose que la peau couverte ne reçoit rien. Sous un \
-                    vêtement épais ou serré, c'est exact ; un jean ou un tissu foncé \
-                    arrêtent la totalité du rayonnement. Un t-shirt de coton blanc en \
-                    laisse en revanche passer environ un dixième, et bien davantage \
-                    s'il est mouillé ou distendu — un maillot trempé ne protège \
-                    presque plus. L'hypothèse retenue sous-estime donc légèrement la \
-                    vitamine D produite, mais aussi le risque de rougeur.
+                Section {
+                    ForEach(Fabric.allCases) { fabric in
+                        fabricRow(fabric)
+                    }
+                } header: {
+                    Text("Étoffe")
+                } footer: {
+                    Text("""
+                    La peau couverte ne reçoit pas rien. Un jean ou une laine serrée \
+                    arrêtent presque tout, mais un coton d'été en laisse passer un \
+                    vingtième, un lin clair un sixième, et un tissu mouillé ou \
+                    distendu près d'un tiers — un t-shirt blanc trempé ne protège \
+                    pratiquement plus.
+
+                    Comme la peau couverte représente presque tout le corps, ce \
+                    filet compte : sous des manches longues et un coton d'été, il \
+                    apporte près de la moitié de ce que donnent le visage, le cou et \
+                    les mains réunis, et un lin clair les dépasse. C'est pourquoi \
+                    changer d'étoffe déplace la durée conseillée sans qu'un seul \
+                    centimètre de peau n'ait été découvert.
+
+                    L'étoffe n'agit que sur la vitamine D. L'heure du coup de soleil \
+                    reste calculée sur la peau nue, qui rougira la première quoi \
+                    qu'on porte ailleurs.
                     """)
                 }
 
@@ -78,15 +97,28 @@ struct ClothingView: View {
                             .font(.body.weight(.semibold).monospacedDigit())
                             .foregroundStyle(Theme.vitaminD)
                     }
+                    HStack {
+                        Text("Surface équivalente")
+                        Spacer()
+                        Text(Format.percent(exposure.effectiveExposedFraction))
+                            .font(.body.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
                     if exposure.sunscreenSPF > 1 {
                         HStack {
-                            Text("UV atteignant la peau")
+                            Text("UV atteignant la peau nue")
                             Spacer()
                             Text(Format.percent(exposure.sunscreenTransmission))
                                 .font(.body.monospacedDigit())
                                 .foregroundStyle(.secondary)
                         }
                     }
+                } footer: {
+                    Text("""
+                    La surface équivalente est celle qui entre dans le calcul de la \
+                    vitamine D : la peau nue, plus la peau couverte comptée à hauteur \
+                    de ce que l'étoffe laisse passer.
+                    """)
                 }
             }
             .navigationTitle("Tenue")
@@ -109,6 +141,9 @@ struct ClothingView: View {
                     : exposure.preset.exposedRegions
             }
             exposure.preset = preset
+            // L'étoffe suit la tenue : passer au manteau sans repasser au tissu
+            // dense laisserait le calcul tourner sur un coton d'été.
+            exposure.fabric = preset.suggestedFabric
         } label: {
             HStack {
                 Image(systemName: preset.symbolName)
@@ -123,6 +158,30 @@ struct ClothingView: View {
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
                 if exposure.preset == preset {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(Theme.vitaminD)
+                }
+            }
+        }
+    }
+
+    private func fabricRow(_ fabric: Fabric) -> some View {
+        Button {
+            exposure.fabric = fabric
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(fabric.title)
+                        .foregroundStyle(.primary)
+                    Text(fabric.detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text("UPF \(fabric.upf)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                if exposure.fabric == fabric {
                     Image(systemName: "checkmark")
                         .foregroundStyle(Theme.vitaminD)
                 }

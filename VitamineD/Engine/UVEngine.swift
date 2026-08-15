@@ -206,23 +206,31 @@ enum UVEngine {
                       illuminatedShare: Double = 1) -> DoseRates {
         guard uvIndex > 0, solarElevation > 0 else { return .zero }
 
-        let transmission = profile.exposure.sunscreenTransmission * environment.skyViewFactor
+        let exposure = profile.exposure
+        let transmission = exposure.sunscreenTransmission * environment.skyViewFactor
 
         // Côté brûlure : la dose érythémale ne dépend pas de la surface exposée,
         // seulement de l'irradiance reçue par la peau la moins protégée.
         let erythemalPerMinute = uvIndex * wattsPerUVIndexPoint * 60 * transmission
         let medFraction = erythemalPerMinute / profile.effectiveMED
 
-        // Côté synthèse : la surface exposée compte directement.
+        // Côté synthèse : la surface compte directement, et deux filtres
+        // différents s'appliquent à deux surfaces différentes. La crème solaire
+        // ne couvre que la peau nue — personne n'en met sous ses vêtements — et
+        // l'étoffe ne filtre que la peau couverte.
+        let bare = exposure.exposedBodyFraction
+        let effectiveArea = bare * exposure.sunscreenTransmission
+            + (1 - bare) * exposure.fabric.transmission
+
         let efficiency = vitaminDEfficiency(solarElevation: solarElevation)
         let vitaminD = synthesisConstant
             * uvIndex
             * efficiency
-            * profile.exposure.exposedBodyFraction
+            * effectiveArea
             * max(0, min(1, illuminatedShare))
             * profile.skinType.vitaminDFactor
             * profile.ageFactor
-            * transmission
+            * environment.skyViewFactor
 
         return DoseRates(vitaminDIUPerMinute: vitaminD,
                          erythemalJoulesPerMinute: erythemalPerMinute,
@@ -230,9 +238,14 @@ enum UVEngine {
     }
 
     /// Plafond de synthèse pour ce profil, en UI.
+    ///
+    /// La surface retenue est la surface équivalente, étoffe comprise : la peau
+    /// sous un vêtement fin finit elle aussi par atteindre son photo-équilibre,
+    /// simplement plus tard. La crème solaire, elle, n'entre pas dans le
+    /// plafond — elle ralentit la montée sans abaisser le palier.
     static func synthesisCeiling(profile: UserProfile) -> Double {
         max(1, wholeBodySynthesisCeiling
-            * profile.exposure.exposedBodyFraction
+            * profile.exposure.effectiveExposedFraction
             * profile.skinType.vitaminDFactor
             * profile.ageFactor)
     }

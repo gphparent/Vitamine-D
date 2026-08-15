@@ -125,9 +125,14 @@ struct MetricTile: View {
                 .foregroundStyle(tint)
                 .contentTransition(.numericText())
             if let detail {
+                // Deux lignes réservées d'office : le détail de la tuile résume
+                // la tenue, et une ligne qui apparaît au changement de vêtement
+                // ferait glisser sous le doigt la rangée qu'on est en train de
+                // toucher.
                 Text(detail)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                    .lineLimit(2, reservesSpace: true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -284,20 +289,22 @@ struct DualProgressBar: View {
         }
     }
 
-    @ViewBuilder
     private var legend: some View {
-        if let erythema = visibleErythemaIU {
-            // Le repère ne s'affiche que lorsqu'il tombe avant l'objectif :
-            // c'est le cas où la peau cède la première, et le seul où il y ait
-            // quelque chose à décider.
-            HStack(spacing: 6) {
+        // Le repère ne s'affiche que lorsqu'il tombe avant l'objectif : c'est le
+        // cas où la peau cède la première, et le seul où il y ait quelque chose
+        // à décider. Sa place reste réservée quand il n'y est pas — se couvrir
+        // le fait apparaître, et une ligne qui surgit ici pousserait vers le bas
+        // la rangée de tenues qu'on est justement en train de toucher.
+        HStack(spacing: 6) {
+            if let erythema = visibleErythemaIU {
                 legendItem(colour: .red, isDashed: false,
                            text: "rougeur vers \(Format.iu(erythema)), avant l'objectif")
-                Spacer(minLength: 0)
             }
-            .font(.caption2)
-            .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
         }
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .frame(height: 11)
     }
 
     private func legendItem(colour: Color, isDashed: Bool, text: String) -> some View {
