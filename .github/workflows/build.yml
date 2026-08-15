@@ -237,48 +237,62 @@ jobs:
           printf '%s' "$ASC_PRIVATE_KEY" > "$RUNNER_TEMP/private_keys/AuthKey_$ASC_KEY_ID.p8"
           chmod 600 "$RUNNER_TEMP/private_keys/AuthKey_$ASC_KEY_ID.p8"
 
-      - name: Archiver sans signer
+      - name: Archiver, signé si possible
         run: |
           set -o pipefail
-          # Cinq façons de signer l'archive ont été essayées, et aucune ne
-          # fonctionne sur ce compte. Elles sont consignées ici pour que
-          # personne ne refasse le tour :
+          # Deux chemins, essayés dans l'ordre, parce que le bon dépend d'une
+          # chose qui ne vit pas dans ce dépôt : la présence d'un appareil
+          # enregistré dans le compte développeur.
           #
-          # 1. Signature automatique : « Your team has no devices from which to
-          #    generate a provisioning profile ». Xcode cherche un profil de
-          #    développement, qui exige un appareil enregistré.
-          # 2. Identité de distribution forcée : « conflicting provisioning
-          #    settings — automatically signed for development ». Pour Xcode,
-          #    l'archivage est une opération de développement ; la distribution
-          #    appartient à l'export.
-          # 3. Signature ad hoc : « Ad Hoc code signing is not allowed with SDK
-          #    iOS 26.5 ».
-          # 4. Injection du fichier .xcent dans l'archive : ignorée par
-          #    l'export.
-          # 5. Signature manuelle : demanderait un certificat de distribution
-          #    dans le trousseau, que la signature infonuagique ne fournit pas.
+          # Avec un appareil, la signature automatique aboutit, et c'est
+          # l'étape de signature qui incorpore le fichier de droits dans
+          # l'application — sans quoi l'export n'a rien à reprendre et
+          # l'application part sans HealthKit ni WeatherKit.
           #
-          # On reste donc sans signature, ce qui produit des versions
-          # fonctionnelles mais amputées de HealthKit et de WeatherKit. La
-          # vérification plus bas le signale à chaque exécution, sans bloquer :
-          # une livraison qui marche à moitié vaut mieux qu'aucune livraison.
+          # Sans appareil, Apple refuse : « Your team has no devices from which
+          # to generate a provisioning profile ». On se rabat alors sur
+          # l'archive non signée, qui produit une version fonctionnelle mais
+          # amputée. Quatre autres méthodes ont été essayées et écartées —
+          # identité de distribution forcée (« conflicting provisioning
+          # settings »), signature ad hoc (interdite par le SDK iOS), injection
+          # du fichier .xcent (ignorée à l'export), signature manuelle (exige un
+          # certificat dans le trousseau que la signature infonuagique ne donne
+          # pas).
           #
-          # La sortie de secours est l'enregistrement d'un appareil dans le
-          # compte développeur, qui débloque la signature automatique.
+          # Le repli est automatique dans les deux sens : le jour où un appareil
+          # sera enregistré, le premier chemin passera de lui-même et les droits
+          # reviendront sans qu'il y ait rien à changer ici.
           #
           # Le numéro de version interne doit croître à chaque téléversement,
           # sans quoi Apple refuse le paquet comme doublon.
-          xcodebuild archive \
-            -project VitamineD.xcodeproj \
-            -scheme VitamineD \
-            -configuration Release \
-            -destination 'generic/platform=iOS' \
-            -archivePath "$RUNNER_TEMP/VitamineD.xcarchive" \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY=""
+          commun=(
+            -project VitamineD.xcodeproj
+            -scheme VitamineD
+            -configuration Release
+            -destination 'generic/platform=iOS'
+            -archivePath "$RUNNER_TEMP/VitamineD.xcarchive"
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID"
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER"
+          )
+
+          if xcodebuild archive "${commun[@]}" \
+              -allowProvisioningUpdates \
+              -authenticationKeyPath "$RUNNER_TEMP/private_keys/AuthKey_$ASC_KEY_ID.p8" \
+              -authenticationKeyID "$ASC_KEY_ID" \
+              -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+              CODE_SIGN_STYLE=Automatic; then
+            echo "Archive signée : les droits y sont incorporés."
+          else
+            echo "::warning::Signature de l'archive impossible — probablement"
+            echo "::warning::aucun appareil enregistré dans le compte."
+            echo "::warning::Repli sans signature : la version partira sans"
+            echo "::warning::HealthKit ni WeatherKit."
+            rm -rf "$RUNNER_TEMP/VitamineD.xcarchive"
+            xcodebuild archive "${commun[@]}" \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGN_IDENTITY=""
+          fi
 
       - name: Exporter et vérifier les droits
         run: |
