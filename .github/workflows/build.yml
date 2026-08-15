@@ -237,17 +237,23 @@ jobs:
           printf '%s' "$ASC_PRIVATE_KEY" > "$RUNNER_TEMP/private_keys/AuthKey_$ASC_KEY_ID.p8"
           chmod 600 "$RUNNER_TEMP/private_keys/AuthKey_$ASC_KEY_ID.p8"
 
-      - name: Archiver sans signer
+      - name: Archiver
         run: |
           set -o pipefail
-          # L'archive est produite sans signature, et c'est délibéré.
+          # L'archive était auparavant produite sans signature. C'était une
+          # erreur, et elle a coûté cher : sans signature, Xcode n'exécute pas
+          # l'étape qui traite le fichier de droits, si bien que l'archive n'en
+          # contenait aucun. L'export réglait alors la signature sur les seuls
+          # droits par défaut du profil, et l'application partait chez Apple
+          # sans HealthKit ni WeatherKit — ce qui ne se voyait qu'à l'usage,
+          # sous la forme d'un « Missing com.apple.developer.healthkit
+          # entitlement » au premier appel.
           #
-          # Signer ici pousserait Xcode à réclamer un profil de *développement*,
-          # lequel exige au moins un appareil enregistré dans le compte — un
-          # compte neuf n'en a aucun, et en ajouter un demanderait de relever
-          # l'identifiant matériel de l'iPhone. La signature de *distribution*,
-          # elle, ne dépend d'aucun appareil : on la laisse donc à l'étape
-          # d'export, qui est justement celle qui sait quoi demander.
+          # La signature se fait donc ici, en signature infonuagique : munie de
+          # la clé d'API, la commande crée le certificat et le profil dont elle
+          # a besoin, et — c'est le point qui manquait — reporte sur
+          # l'identifiant d'application les capacités déclarées dans le fichier
+          # de droits.
           #
           # Le numéro de version interne doit croître à chaque téléversement,
           # sans quoi Apple refuse le paquet comme doublon. Le compteur
@@ -258,11 +264,33 @@ jobs:
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/VitamineD.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/private_keys/AuthKey_$ASC_KEY_ID.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY=""
+            CODE_SIGN_STYLE=Automatic \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER"
+
+      - name: Vérifier les droits réellement embarqués
+        run: |
+          set -e
+          APP="$RUNNER_TEMP/VitamineD.xcarchive/Products/Applications/VitamineD.app"
+          echo "--- droits de $APP ---"
+          codesign -d --entitlements :- "$APP" 2>/dev/null || true
+          echo "----------------------"
+
+          # Le journal ne suffit pas : personne ne le relit. Une capacité
+          # absente doit faire échouer la compilation ici, pas se découvrir
+          # dans l'application trois versions plus tard.
+          for droit in com.apple.developer.healthkit com.apple.developer.weatherkit; do
+            if codesign -d --entitlements :- "$APP" 2>/dev/null | grep -q "$droit"; then
+              echo "✓ $droit"
+            else
+              echo "✗ $droit manquant dans l'archive signée"
+              exit 1
+            fi
+          done
 
       - name: Exporter et téléverser
         run: |
