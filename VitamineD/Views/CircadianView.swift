@@ -14,6 +14,7 @@ struct CircadianView: View {
                 todayCard
                 if model.profile.wantsPhaseShift { shiftCard }
                 eveningCard
+                routineLink
                 toolsLink
                 settings(model: model)
                 caveat
@@ -195,6 +196,43 @@ struct CircadianView: View {
                 }
                 Slider(value: $model.profile.sleepHours, in: 5...10, step: 0.5)
             }
+        }
+    }
+
+    /// Renvoi vers la routine programmable.
+    ///
+    /// Placé avant le catalogue d'outils, et c'est délibéré : ce qui change une
+    /// nuit se joue à des heures précises, pas dans le choix d'une lampe.
+    private var routineLink: some View {
+        NavigationLink {
+            SleepRoutineView()
+        } label: {
+            Card(title: "Votre routine", systemImage: "list.bullet.clipboard") {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Neuf heures calculées, neuf rappels au choix")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.primary)
+                        Text(reminderSummary)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var reminderSummary: String {
+        let count = model.profile.sleepReminders.count
+        switch count {
+        case 0:  return "Dernier café, bain chaud, pénombre, coucher — aucun rappel actif"
+        case 1:  return "Un rappel actif"
+        default: return "\(count) rappels actifs"
         }
     }
 

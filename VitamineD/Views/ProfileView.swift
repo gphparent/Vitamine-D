@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ProfileView: View {
 
@@ -170,6 +171,10 @@ struct ProfileView: View {
                 }
 
                 Section {
+                    // Basculer *est* la demande d'autorisation. Séparer les
+                    // deux laissait des gens avec un interrupteur allumé et
+                    // aucun accès : l'application lisait le vide et n'affichait
+                    // rien, ce qui ressemblait exactement à une panne.
                     Toggle("Lire les données de santé", isOn: $model.profile.readsHealthKit)
                         .disabled(!model.health.isAvailable)
                     Toggle("Enregistrer mes sorties dans Santé",
@@ -177,23 +182,28 @@ struct ProfileView: View {
                         .disabled(!model.health.isAvailable)
 
                     if model.profile.readsHealthKit || model.profile.writesHealthKit {
-                        Button("Autoriser l'accès") {
-                            Task {
-                                await model.health.requestAuthorisation(
-                                    writing: model.profile.writesHealthKit,
-                                    dietary: model.profile.writesVitaminDAsDietary)
-                                await model.health.refresh(on: model.now,
-                                                           calendar: model.calendar)
-                            }
-                        }
+                        healthStatusRow
                     }
 
                     if model.profile.readsHealthKit {
                         LabeledContent("Vitamine D alimentaire aujourd'hui",
-                                       value: Format.iu(model.health.dietaryVitaminDIU))
+                                       value: model.health.hasDietarySamples
+                                           ? Format.iu(model.health.dietaryVitaminDIU)
+                                           : "aucune donnée")
                         LabeledContent("Plein jour mesuré",
-                                       value: "\(Int(model.health.daylightMinutes.rounded())) min")
+                                       value: model.health.hasDaylightSamples
+                                           ? "\(Int(model.health.daylightMinutes.rounded())) min"
+                                           : "aucune donnée")
                     }
+
+                    if let error = model.health.lastWriteError {
+                        Label(error, systemImage: "exclamationmark.triangle")
+                            .font(.footnote)
+                            .foregroundStyle(.orange)
+                    }
+
+                    Button("Ouvrir Réglages ▸ Santé") { openHealthSettings() }
+                        .font(.footnote)
                 } header: {
                     Text("Santé")
                 } footer: {
@@ -207,6 +217,12 @@ struct ProfileView: View {
                     indice UV moyen sur une durée, ce qui décrit exactement ce qu'elle \
                     a été. Le temps passé au grand jour n'est jamais écrit : votre \
                     montre l'enregistre déjà, et Santé additionne les sources.
+
+                    « Aucune donnée » veut dire qu'aucune application n'en a jamais \
+                    enregistré, pas que la lecture a échoué. Les minutes de plein jour \
+                    viennent de l'Apple Watch et n'existent pas sans elle ; la vitamine \
+                    D alimentaire suppose que vous notiez vos repas ou vos suppléments \
+                    quelque part.
                     """)
                 }
 
@@ -279,6 +295,23 @@ struct ProfileView: View {
             .onChange(of: heightText) { _, new in
                 model.profile.heightCentimetres = MeasurementField.value(from: new)
             }
+            // Allumer l'interrupteur, c'est demander l'accès. Le système ne
+            // présentera sa feuille qu'une fois — ensuite tout se passe dans
+            // Réglages ▸ Santé, et le bouton ci-dessous y mène.
+            .onChange(of: model.profile.readsHealthKit) { _, on in
+                if on { requestHealthAccess() }
+            }
+            .onChange(of: model.profile.writesHealthKit) { _, on in
+                if on { requestHealthAccess() }
+            }
+            .onChange(of: model.profile.writesVitaminDAsDietary) { _, on in
+                if on { requestHealthAccess() }
+            }
+            .task {
+                await model.health.refreshRequestStatus(
+                    writing: model.profile.writesHealthKit,
+                    dietary: model.profile.writesVitaminDAsDietary)
+            }
             .sheet(isPresented: $showsClothing) {
                 ClothingView(exposure: $model.profile.exposure)
             }
@@ -286,6 +319,80 @@ struct ProfileView: View {
                 OnboardingView(isReview: true)
             }
         }
+    }
+
+    // MARK: - Santé
+
+    /// Ce que l'application sait honnêtement de son propre accès.
+    ///
+    /// Elle en sait moins qu'on ne croit, et le taire serait pire que de
+    /// l'admettre. Apple ne révèle jamais si une autorisation de *lecture* a
+    /// été accordée : c'est délibéré, pour qu'un refus ne puisse pas trahir
+    /// l'existence d'une donnée. L'écriture, elle, est vérifiable.
+    @ViewBuilder
+    private var healthStatusRow: some View {
+        switch model.health.connection {
+        case .unavailable:
+            Label("Santé n'est pas disponible sur cet appareil",
+                  systemImage: "xmark.circle")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+        case .notRequested:
+            Button {
+                requestHealthAccess()
+            } label: {
+                Label("Demander l'accès à Santé", systemImage: "heart.text.square")
+            }
+
+        case .requested:
+            VStack(alignment: .leading, spacing: 4) {
+                Label("Accès demandé", systemImage: "checkmark.circle")
+                    .font(.footnote)
+                    .foregroundStyle(Color(red: 0.30, green: 0.66, blue: 0.42))
+
+                if model.profile.writesHealthKit {
+                    Text(writeStatusSentence)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Text("Ce qui a été accordé en lecture n'est pas consultable : "
+                     + "Apple l'interdit, pour qu'un refus ne révèle pas "
+                     + "l'existence d'une donnée. Vérifiez dans Réglages ▸ Santé "
+                     + "▸ Accès aux données.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var writeStatusSentence: String {
+        switch model.health.ultravioletWriteStatus {
+        case .sharingAuthorized:
+            return "Écriture de l'exposition ultraviolette : autorisée."
+        case .sharingDenied:
+            return "Écriture de l'exposition ultraviolette : refusée. "
+                + "Vos sorties ne sont donc pas enregistrées dans Santé."
+        default:
+            return "Écriture de l'exposition ultraviolette : jamais demandée."
+        }
+    }
+
+    private func requestHealthAccess() {
+        Task {
+            await model.health.requestAuthorisation(
+                writing: model.profile.writesHealthKit,
+                dietary: model.profile.writesVitaminDAsDietary)
+            await model.health.refresh(on: model.now, calendar: model.calendar)
+        }
+    }
+
+    /// Ouvre la fiche de l'application dans Réglages, seul endroit où les
+    /// permissions de Santé se révoquent ou se rétablissent.
+    private func openHealthSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
     }
 
     // MARK: - Morphologie et objectif

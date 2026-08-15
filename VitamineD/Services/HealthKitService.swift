@@ -56,6 +56,76 @@ final class HealthKitService {
 
     var isAvailable: Bool { HKHealthStore.isHealthDataAvailable() }
 
+    // MARK: - Ce que l'application sait de son propre accès
+
+    /// Y a-t-il seulement des échantillons à lire ?
+    ///
+    /// Zéro et « rien » ne veulent pas dire la même chose, et c'est toute la
+    /// différence entre une application qui fonctionne et une application qui
+    /// paraît cassée. Une somme nulle peut signifier trois choses : personne
+    /// n'a jamais rien enregistré, l'autorisation a été refusée, ou la valeur
+    /// est réellement nulle. HealthKit ne dira jamais laquelle — Apple
+    /// l'interdit pour la lecture, afin qu'un refus ne puisse pas trahir
+    /// l'existence d'une donnée. On distingue au moins le premier cas.
+    private(set) var hasDietarySamples = false
+    private(set) var hasDaylightSamples = false
+
+    /// Dernière relecture réussie.
+    private(set) var lastRefresh: Date?
+
+    /// Dernière erreur d'écriture, telle que HealthKit l'a formulée.
+    ///
+    /// Elle était auparavant avalée par un `try?`. Une écriture refusée ne
+    /// laissait alors aucune trace nulle part : ni dans Santé, ni à l'écran.
+    private(set) var lastWriteError: String?
+
+    /// Le système a-t-il déjà posé la question à l'utilisateur ?
+    ///
+    /// `shouldRequest` signifie qu'au moins un type n'a jamais été soumis :
+    /// c'est le seul cas où présenter la feuille sert à quelque chose.
+    /// `unnecessary` signifie que tout a été demandé — sans rien dire de ce qui
+    /// a été accordé.
+    private(set) var requestStatus: HKAuthorizationRequestStatus = .unknown
+
+    /// Écriture autorisée pour l'exposition ultraviolette ?
+    ///
+    /// Contrairement à la lecture, le statut d'écriture est lisible : il n'y a
+    /// aucun secret à protéger dans le fait qu'une application ait le droit
+    /// d'ajouter une donnée.
+    var ultravioletWriteStatus: HKAuthorizationStatus {
+        guard let type = HKQuantityType.quantityType(forIdentifier: .uvExposure) else {
+            return .notDetermined
+        }
+        return store.authorizationStatus(for: type)
+    }
+
+    var dietaryWriteStatus: HKAuthorizationStatus {
+        guard let type = HKQuantityType.quantityType(forIdentifier: .dietaryVitaminD) else {
+            return .notDetermined
+        }
+        return store.authorizationStatus(for: type)
+    }
+
+    /// État global, tel qu'on peut honnêtement le présenter.
+    enum Connection: Equatable, Sendable {
+        /// Pas de HealthKit sur cet appareil.
+        case unavailable
+        /// La question n'a jamais été posée.
+        case notRequested
+        /// La question a été posée. Ce qui a été accordé en lecture reste,
+        /// par construction, invérifiable.
+        case requested
+    }
+
+    /// Seul `unnecessary` prouve que la question a été posée. Dans le doute on
+    /// propose de la poser : appuyer sur le bouton une fois de trop ne coûte
+    /// rien, alors qu'annoncer à tort un accès obtenu laisse quelqu'un devant
+    /// un écran vide sans savoir quoi faire.
+    var connection: Connection {
+        guard isAvailable else { return .unavailable }
+        return requestStatus == .unnecessary ? .requested : .notRequested
+    }
+
     /// Types que l'application peut écrire.
     ///
     /// `timeInDaylight` en est délibérément absent. L'Apple Watch l'alimente
@@ -96,6 +166,22 @@ final class HealthKitService {
         } catch {
             isAuthorised = false
         }
+        await refreshRequestStatus(writing: writing, dietary: dietary)
+    }
+
+    /// Relit l'état de la demande auprès du système.
+    ///
+    /// À appeler à l'ouverture de l'écran de réglages : l'utilisateur a pu
+    /// changer d'avis dans Réglages ▸ Santé entre deux lancements, et
+    /// l'application ne l'apprendra pas autrement.
+    func refreshRequestStatus(writing: Bool = false, dietary: Bool = false) async {
+        guard isAvailable else {
+            requestStatus = .unknown
+            return
+        }
+        let share = writing ? writeTypes(includingDietary: dietary) : []
+        requestStatus = (try? await store.statusForAuthorizationRequest(
+            toShare: share, read: readTypes)) ?? .unknown
     }
 
     // MARK: - Écriture
@@ -145,7 +231,15 @@ final class HealthKitService {
         }
 
         guard !samples.isEmpty else { return }
-        try? await store.save(samples)
+        do {
+            try await store.save(samples)
+            lastWriteError = nil
+        } catch {
+            // Une écriture refusée ne laissait aucune trace : ni dans Santé,
+            // ni à l'écran. L'utilisateur en concluait, à raison, que rien ne
+            // marchait — sans jamais savoir quoi.
+            lastWriteError = error.localizedDescription
+        }
     }
 
     /// Retire de Santé les échantillons d'une sortie.
@@ -191,17 +285,22 @@ final class HealthKitService {
         let start = calendar.startOfDay(for: date)
         let end = start.addingTimeInterval(86_400)
 
-        if let micrograms = await sum(identifier: .dietaryVitaminD,
-                                      unit: .gramUnit(with: .micro),
-                                      from: start, to: end) {
-            dietaryVitaminDIU = micrograms / Self.microgrammesPerIU
-        }
+        // Une somme absente et une somme nulle sont deux choses différentes :
+        // la première dit qu'il n'existe aucun échantillon, la seconde qu'il en
+        // existe et qu'ils valent zéro. L'écran doit pouvoir le dire.
+        let micrograms = await sum(identifier: .dietaryVitaminD,
+                                   unit: .gramUnit(with: .micro),
+                                   from: start, to: end)
+        hasDietarySamples = micrograms != nil
+        dietaryVitaminDIU = (micrograms ?? 0) / Self.microgrammesPerIU
 
-        if let minutes = await sum(identifier: .timeInDaylight,
-                                   unit: .minute(),
-                                   from: start, to: end) {
-            daylightMinutes = minutes
-        }
+        let minutes = await sum(identifier: .timeInDaylight,
+                                unit: .minute(),
+                                from: start, to: end)
+        hasDaylightSamples = minutes != nil
+        daylightMinutes = minutes ?? 0
+
+        lastRefresh = Date()
     }
 
     private func sum(identifier: HKQuantityTypeIdentifier,

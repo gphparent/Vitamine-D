@@ -168,6 +168,47 @@ final class NotificationService {
             sound: .default)
     }
 
+    // MARK: - Routine du soir
+
+    static func sleepIdentifier(_ step: SleepRoutineStep) -> String {
+        "sleep.\(step.rawValue)"
+    }
+
+    /// Reprogramme les rappels de la routine du soir.
+    ///
+    /// Un déclencheur de calendrier répétitif est déposé une fois auprès du
+    /// système : il survit à la fermeture de l'application comme au
+    /// redémarrage du téléphone, et se déclenche à la même heure chaque jour
+    /// sans que l'application ait à s'exécuter.
+    ///
+    /// Ce sont des **rappels**, et non des alarmes. iOS réserve les alarmes à
+    /// l'application Horloge, qui seule sonne malgré le mode silencieux et les
+    /// modes de concentration. L'écran le dit, parce que confondre les deux
+    /// ferait manquer un lever.
+    func scheduleSleepReminders(routine: SleepRoutine, enabled: Set<String>) {
+        let all = SleepRoutineStep.allCases.map { Self.sleepIdentifier($0) }
+        centre.removePendingNotificationRequests(withIdentifiers: all)
+        guard authorisationStatus == .authorized || authorisationStatus == .provisional else { return }
+
+        for entry in routine.entries where enabled.contains(entry.step.rawValue) {
+            let content = UNMutableNotificationContent()
+            content.title = entry.step.title
+            content.body = entry.step.notificationBody
+            content.sound = .default
+            content.interruptionLevel = .active
+
+            var components = DateComponents()
+            components.hour = entry.minuteOfDay / 60
+            components.minute = entry.minuteOfDay % 60
+
+            centre.add(UNNotificationRequest(
+                identifier: Self.sleepIdentifier(entry.step),
+                content: content,
+                trigger: UNCalendarNotificationTrigger(dateMatching: components,
+                                                       repeats: true)))
+        }
+    }
+
     func cancelAll() {
         centre.removeAllPendingNotificationRequests()
     }

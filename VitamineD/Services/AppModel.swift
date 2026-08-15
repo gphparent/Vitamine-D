@@ -16,6 +16,7 @@ final class AppModel {
             store.save(profile, for: .profile)
             rebuildPlan()
             refreshDailyNotification()
+            refreshSleepReminders()
         }
     }
 
@@ -288,6 +289,12 @@ final class AppModel {
     // MARK: - Cycle de vie
 
     func start() async {
+        if profile.readsHealthKit || profile.writesHealthKit {
+            // L'utilisateur a pu révoquer l'accès dans Réglages entre deux
+            // lancements : l'application ne l'apprendra pas autrement.
+            await health.refreshRequestStatus(writing: profile.writesHealthKit,
+                                              dietary: profile.writesVitaminDAsDietary)
+        }
         if profile.readsHealthKit {
             await health.refresh(on: now, calendar: calendar)
         }
@@ -297,6 +304,9 @@ final class AppModel {
         startTicking()
         locationService.refresh()
         await notifications.refreshAuthorisationStatus()
+        // Après avoir relu l'autorisation : les rappels ne se déposent que si
+        // elle est accordée, et le contraire les perdrait à chaque lancement.
+        refreshSleepReminders()
         await refresh()
     }
 
@@ -704,6 +714,19 @@ final class AppModel {
     }
 
     // MARK: - Notifications
+
+    /// La routine du soir calculée pour le profil courant.
+    var sleepRoutine: SleepRoutine { SleepRoutine.make(profile: profile) }
+
+    /// Redépose les rappels de routine.
+    ///
+    /// Appelé à chaque modification du profil : changer l'heure de lever visée
+    /// doit déplacer les neuf rappels d'un coup, sans que l'utilisateur ait à
+    /// les rouvrir un par un.
+    func refreshSleepReminders() {
+        notifications.scheduleSleepReminders(routine: sleepRoutine,
+                                             enabled: profile.sleepReminders)
+    }
 
     private func refreshDailyNotification() {
         guard profile.notifyDailyPlan else {

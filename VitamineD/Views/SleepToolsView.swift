@@ -162,27 +162,9 @@ struct SleepToolsView: View {
 /// étudié depuis trente ans d'un objet vendu sur la foi d'un mécanisme
 /// plausible.
 struct EvidenceBadge: View {
-    enum Strength: Int, Comparable, Sendable {
-        case solid, moderate, thin
-
-        static func < (lhs: Strength, rhs: Strength) -> Bool { lhs.rawValue < rhs.rawValue }
-
-        var title: String {
-            switch self {
-            case .solid:    return "Preuve solide"
-            case .moderate: return "Preuve modérée"
-            case .thin:     return "Preuve mince"
-            }
-        }
-
-        var tint: Color {
-            switch self {
-            case .solid:    return Color(red: 0.30, green: 0.66, blue: 0.42)
-            case .moderate: return Color(red: 0.95, green: 0.72, blue: 0.20)
-            case .thin:     return .secondary
-            }
-        }
-    }
+    /// Le type vit dans le moteur, avec les affirmations qu'il qualifie ;
+    /// seule sa teinte, qui est une affaire d'écran, reste ici.
+    typealias Strength = EvidenceStrength
 
     let strength: Strength
 
@@ -193,6 +175,16 @@ struct EvidenceBadge: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
             .background(strength.tint.opacity(0.14), in: Capsule())
+    }
+}
+
+extension EvidenceStrength {
+    var tint: Color {
+        switch self {
+        case .solid:    return Color(red: 0.30, green: 0.66, blue: 0.42)
+        case .moderate: return Color(red: 0.95, green: 0.72, blue: 0.20)
+        case .thin:     return .secondary
+        }
     }
 }
 
@@ -223,6 +215,7 @@ enum SleepTool: String, CaseIterable, Identifiable, Sendable {
     case daylight
     case lightBox
     case dawnSimulator
+    case appBlocker
     case blueBlockers
 
     var id: String { rawValue }
@@ -232,6 +225,7 @@ enum SleepTool: String, CaseIterable, Identifiable, Sendable {
         case .daylight:      return "Le Soleil"
         case .lightBox:      return "Lampe de luminothérapie"
         case .dawnSimulator: return "Simulateur d'aube"
+        case .appBlocker:    return "Blocage automatique des applications"
         case .blueBlockers:  return "Lunettes filtrantes du soir"
         }
     }
@@ -241,6 +235,7 @@ enum SleepTool: String, CaseIterable, Identifiable, Sendable {
         case .daylight:      return "sun.horizon"
         case .lightBox:      return "lamp.desk"
         case .dawnSimulator: return "sunrise"
+        case .appBlocker:    return "hand.raised"
         case .blueBlockers:  return "eyeglasses"
         }
     }
@@ -250,6 +245,7 @@ enum SleepTool: String, CaseIterable, Identifiable, Sendable {
         case .daylight:      return "10 à 30 min, dès le lever"
         case .lightBox:      return "10 000 lux, 20 à 30 min"
         case .dawnSimulator: return "crescendo de 30 à 90 min"
+        case .appBlocker:    return "à partir de 1 h avant le coucher"
         case .blueBlockers:  return "2 à 3 h avant le coucher"
         }
     }
@@ -259,6 +255,7 @@ enum SleepTool: String, CaseIterable, Identifiable, Sendable {
         case .daylight:      return .solid
         case .lightBox:      return .solid
         case .dawnSimulator: return .moderate
+        case .appBlocker:    return .moderate
         case .blueBlockers:  return .thin
         }
     }
@@ -290,6 +287,25 @@ enum SleepTool: String, CaseIterable, Identifiable, Sendable {
             difficulté à émerger et l'humeur des matins d'hiver, insuffisant \
             pour déplacer une horloge nettement décalée.
             """
+        case .appBlocker:
+            return """
+            Le seul outil de cette liste qui s'attaque à la vraie cause. Ce qui \
+            retient éveillé le soir, ce n'est pas tant la lumière de l'écran — \
+            un téléphone à bout de bras éclaire moins qu'un plafonnier — que ce \
+            qu'on y regarde : des applications conçues pour que la session ne \
+            s'arrête jamais d'elle-même.
+
+            ScreenZen est celui qui vaut le détour. Gratuit, il fait deux \
+            choses : il bloque les applications choisies sur un horaire, et il \
+            impose une pause avec une question avant d'ouvrir celles qu'il \
+            laisse passer. Ce délai suffit souvent à faire renoncer, ce qu'une \
+            simple limite de temps n'obtient pas.
+
+            iOS sait déjà le faire, gratuitement, sous Réglages ▸ Temps d'écran \
+            ▸ Temps d'arrêt : un horaire, des applications autorisées, et c'est \
+            tout. Moins de friction et plus facile à contourner, mais rien à \
+            installer. Commencez par là si vous hésitez.
+            """
         case .blueBlockers:
             return """
             Des verres qui retirent le bleu des écrans et des lampes du soir. \
@@ -310,6 +326,9 @@ enum SleepTool: String, CaseIterable, Identifiable, Sendable {
                 + "sans avis médical : elle peut déclencher un virage maniaque."
         case .dawnSimulator:
             return "Trop faible pour un décalage important. À compléter par du vrai jour."
+        case .appBlocker:
+            return "Aucun essai clinique ne porte sur ces applications en particulier : "
+                + "ce qui est établi, c'est le lien entre usage nocturne et sommeil écourté."
         case .blueBlockers:
             return "Ne remplace pas le fait de baisser les lumières : filtrer un écran "
                 + "brillant laisse passer beaucoup plus qu'éteindre la pièce."

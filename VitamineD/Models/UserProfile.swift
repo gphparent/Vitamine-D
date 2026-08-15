@@ -74,6 +74,13 @@ struct UserProfile: Codable, Equatable, Sendable {
     var sleepHours: Double
     var notifyMorningLight: Bool
 
+    /// Étapes de la routine du soir pour lesquelles un rappel quotidien est
+    /// programmé, par identifiant.
+    ///
+    /// Conservé en chaînes plutôt qu'en cas d'énumération : une version qui
+    /// retirerait une étape ne doit pas rendre le profil illisible.
+    var sleepReminders: Set<String>
+
     static let `default` = UserProfile(
         skinType: .iii,
         age: 35,
@@ -95,7 +102,8 @@ struct UserProfile: Codable, Equatable, Sendable {
         wakeMinuteOfDay: 7 * 60,
         targetWakeMinuteOfDay: 7 * 60,
         sleepHours: 8,
-        notifyMorningLight: false
+        notifyMorningLight: false,
+        sleepReminders: []
     )
 
     /// Rendement lié à l'âge.
@@ -164,6 +172,8 @@ struct UserProfile: Codable, Equatable, Sendable {
             ?? fallback.writesVitaminDAsDietary
         notifyMorningLight = (try? container.decode(Bool.self, forKey: .notifyMorningLight))
             ?? fallback.notifyMorningLight
+        sleepReminders = (try? container.decode(Set<String>.self, forKey: .sleepReminders))
+            ?? fallback.sleepReminders
     }
 
     init(skinType: SkinType,
@@ -186,7 +196,8 @@ struct UserProfile: Codable, Equatable, Sendable {
          wakeMinuteOfDay: Int,
          targetWakeMinuteOfDay: Int,
          sleepHours: Double,
-         notifyMorningLight: Bool) {
+         notifyMorningLight: Bool,
+         sleepReminders: Set<String> = []) {
         self.skinType = skinType
         self.age = age
         self.tanLevel = tanLevel
@@ -208,6 +219,7 @@ struct UserProfile: Codable, Equatable, Sendable {
         self.targetWakeMinuteOfDay = targetWakeMinuteOfDay
         self.sleepHours = sleepHours
         self.notifyMorningLight = notifyMorningLight
+        self.sleepReminders = sleepReminders
     }
 
     /// Le lever visé diffère-t-il de l'habituel ?
