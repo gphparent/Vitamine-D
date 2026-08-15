@@ -280,9 +280,9 @@ struct ProfileView: View {
                     Text("""
                     Cette application n'est pas un dispositif médical et ne pose aucun \
                     diagnostic. Elle applique à un modèle des données publiées — apports \
-                    de référence de Santé Canada et de l'Institute of Medicine, \
-                    photobiologie cutanée, position du Soleil — et ne mesure rien dans \
-                    votre sang.
+                    recommandés, photobiologie cutanée, position du Soleil — et ne mesure \
+                    rien dans votre sang. Ces apports ne font d'ailleurs pas consensus, et \
+                    l'application expose le désaccord plutôt que de trancher.
 
                     Les durées affichées sont des ordres de grandeur : la réponse cutanée \
                     varie d'un facteur deux à trois entre individus de même phototype. \

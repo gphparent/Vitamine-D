@@ -7,36 +7,42 @@ import Testing
 /// quoi qu'on lui donne à manger.
 struct VitaminDTargetTests {
 
-    // MARK: - Ancrage réglementaire
+    // MARK: - Une fourchette, pas une autorité
 
-    @Test("Un adulte de corpulence normale reçoit l'apport de référence")
-    func normalAdultGetsReferenceIntake() {
+    @Test("La suggestion est le milieu de la fourchette publiée")
+    func suggestionSitsBetweenTheTwoInstitutions() {
         let suggestion = VitaminDTarget.suggestion(
             age: 35, weightKilograms: 70, heightCentimetres: 175)
 
         #expect(suggestion.category == .normal)
-        #expect(suggestion.dailyIU == VitaminDTarget.referenceIntakeUnder70)
+        #expect(suggestion.lowerIU == VitaminDTarget.dietaryReferenceUnder70)
+        #expect(suggestion.upperIU == VitaminDTarget.clinicalReferenceUpper)
+        // Ni l'une ni l'autre des bornes : les institutions ne s'accordent pas,
+        // et retenir l'une d'elles serait choisir un camp sans argument.
+        #expect(suggestion.dailyIU > suggestion.lowerIU)
+        #expect(suggestion.dailyIU < suggestion.upperIU)
         #expect(!suggestion.wasCapped)
     }
 
-    @Test("Au-delà de 70 ans, la référence monte à 800 UI")
-    func olderAdultGetsHigherReference() {
+    @Test("Au-delà de 70 ans, la borne basse monte à 800 UI")
+    func olderAdultGetsHigherLowerBound() {
         let suggestion = VitaminDTarget.suggestion(
             age: 75, weightKilograms: 70, heightCentimetres: 175)
 
-        #expect(suggestion.referenceIU == VitaminDTarget.referenceIntakeOver70)
-        #expect(suggestion.dailyIU == 800)
+        #expect(suggestion.lowerIU == VitaminDTarget.dietaryReferenceOver70)
+        #expect(suggestion.dailyIU > VitaminDTarget.dietaryReferenceOver70)
     }
 
-    @Test("Sans mesure, la suggestion reste l'apport de référence")
-    func missingMeasurementsFallBackToReference() {
+    @Test("Sans mesure, la fourchette reste celle d'un adulte non corrigé")
+    func missingMeasurementsLeaveTheRangeUncorrected() {
         let suggestion = VitaminDTarget.suggestion(
             age: 35, weightKilograms: nil, heightCentimetres: nil)
 
         #expect(suggestion.category == .unknown)
         #expect(suggestion.bmi == nil)
         #expect(suggestion.bodyFactor == 1)
-        #expect(suggestion.dailyIU == VitaminDTarget.referenceIntakeUnder70)
+        #expect(suggestion.lowerIU == VitaminDTarget.dietaryReferenceUnder70)
+        #expect(suggestion.upperIU == VitaminDTarget.clinicalReferenceUpper)
     }
 
     // MARK: - Corpulence
@@ -89,7 +95,9 @@ struct VitaminDTargetTests {
                     let suggestion = VitaminDTarget.suggestion(
                         age: age, weightKilograms: weight, heightCentimetres: height)
                     #expect(suggestion.dailyIU <= VitaminDTarget.tolerableUpperIntake)
+                    #expect(suggestion.upperIU <= VitaminDTarget.tolerableUpperIntake)
                     #expect(suggestion.dailyIU >= 400)
+                    #expect(suggestion.dailyIU >= suggestion.lowerIU)
                     // Un objectif à 897 UI donnerait une fausse impression de
                     // précision sur une valeur qui n'en a aucune.
                     #expect(suggestion.dailyIU.truncatingRemainder(dividingBy: 100) == 0)
@@ -100,14 +108,18 @@ struct VitaminDTargetTests {
 
     // MARK: - Explication
 
-    @Test("L'explication ne présente jamais la suggestion comme une prescription")
-    func rationaleStaysASuggestion() {
+    @Test("L'explication nomme les deux bornes et leurs auteurs")
+    func rationaleNamesBothInstitutions() {
         let unknown = VitaminDTarget.suggestion(
             age: 35, weightKilograms: nil, heightCentimetres: nil)
         let text = VitaminDTarget.rationale(for: unknown, age: 35)
 
-        #expect(text.contains("Santé Canada"))
+        // Les deux camps sont cités, et aucun n'est présenté seul : donner un
+        // chiffre unique reviendrait à trancher un débat ouvert.
+        #expect(text.contains("Institute of Medicine"))
+        #expect(text.contains("Endocrine Society"))
         #expect(text.contains("600"))
+        #expect(text.contains("2000") || text.contains("2 000"))
         // Sans mesure, l'explication doit inviter à les fournir plutôt que de
         // laisser croire que le chiffre est personnalisé.
         #expect(text.contains("taille"))

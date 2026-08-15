@@ -189,25 +189,23 @@ struct UVGauge: View {
 /// pour combien de peau ».
 /// Les deux comptes de la journée : ce qui est produit, ce qui est dépensé.
 ///
-/// La barre de vitamine D est graduée sur **ce que la journée permet** : la
-/// quantité qu'on obtiendrait en restant dehors jusqu'à la rougeur, ou la
-/// journée entière quand la rougeur est hors de portée.
+/// La barre de vitamine D est graduée sur **votre objectif**, et rien d'autre.
 ///
-/// Elle a d'abord été graduée sur le plafond de photo-équilibre, et c'était une
-/// erreur. Ce plafond est une asymptote : la courbe de saturation s'en approche
-/// sans jamais y arriver, et il faudrait une dose infinie pour l'atteindre.
-/// Affiché comme maximum, il donnait un chiffre à cinq chiffres que personne ne
-/// peut atteindre — une barre qui reste vide quoi qu'on fasse n'informe pas,
-/// elle décourage.
+/// Deux autres échelles ont été essayées et écartées. Le plafond de
+/// photo-équilibre est une asymptote : il donnait un maximum à cinq chiffres
+/// que personne ne peut atteindre, et une barre qui reste vide quoi qu'on fasse
+/// n'informe pas. Le maximum du jour, lui, est atteignable mais mobile — il
+/// change avec la tenue, la météo et la saison, si bien que la même sortie
+/// remplissait la barre différemment d'un jour à l'autre. Un objectif, au
+/// moins, ne bouge que quand on décide de le bouger.
 ///
-/// L'échelle ne descend jamais sous l'objectif : quand la journée ne permet pas
-/// de l'atteindre, c'est précisément ce qu'il faut voir, et le repère rouge
-/// tombe alors avant le pointillé.
+/// Un seul repère y subsiste, et c'est le seul qui garde du sens à cette
+/// échelle : le trait rouge marquant l'endroit où la peau rougirait. Il
+/// n'apparaît que s'il tombe **avant** l'objectif — c'est-à-dire exactement
+/// quand il faut le savoir.
 struct DualProgressBar: View {
     /// Vitamine D produite aujourd'hui, en UI.
     let vitaminDIU: Double
-    /// Ce que la journée permet au maximum, en UI.
-    let attainableIU: Double
     /// Objectif quotidien choisi par l'utilisateur, en UI.
     let goalIU: Double
     /// Vitamine D cumulée à laquelle la rougeur surviendrait si l'on restait
@@ -216,8 +214,7 @@ struct DualProgressBar: View {
     let medFraction: Double
     let burnLevel: SessionProgress.BurnLevel
 
-    /// L'échelle : ce que la journée permet, jamais moins que l'objectif.
-    private var ceiling: Double { max(1, max(attainableIU, goalIU)) }
+    private var ceiling: Double { max(1, goalIU) }
 
     /// Le repère de rougeur ne se dessine que s'il tombe dans la barre.
     private var visibleErythemaIU: Double? {
@@ -237,7 +234,7 @@ struct DualProgressBar: View {
         }
     }
 
-    // MARK: - Vitamine D, graduée sur le plafond
+    // MARK: - Vitamine D, graduée sur l'objectif
 
     private var vitaminDBar: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -261,17 +258,10 @@ struct DualProgressBar: View {
                         .fill(Theme.vitaminD)
                         .frame(width: width * fraction(of: vitaminDIU))
 
-                    // Le seuil de rougeur d'abord, l'objectif par-dessus : si
-                    // les deux coïncident, c'est le repère qu'on choisit qui
-                    // doit rester lisible.
                     if let erythema = visibleErythemaIU {
                         marker(at: fraction(of: erythema), in: width, height: height)
                             .stroke(Color.red.opacity(0.85), lineWidth: 2)
                     }
-
-                    marker(at: fraction(of: goalIU), in: width, height: height)
-                        .stroke(Color.primary.opacity(0.65),
-                                style: StrokeStyle(lineWidth: 2, dash: [2.5, 2.5]))
                 }
             }
             .frame(height: 10)
@@ -294,28 +284,20 @@ struct DualProgressBar: View {
         }
     }
 
+    @ViewBuilder
     private var legend: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 12) {
-                legendItem(colour: Color.primary.opacity(0.65), isDashed: true,
-                           text: "objectif \(Format.iu(goalIU))")
-
-                if let erythema = visibleErythemaIU {
-                    legendItem(colour: .red, isDashed: false,
-                               text: "rougeur vers \(Format.iu(erythema))")
-                }
+        if let erythema = visibleErythemaIU {
+            // Le repère ne s'affiche que lorsqu'il tombe avant l'objectif :
+            // c'est le cas où la peau cède la première, et le seul où il y ait
+            // quelque chose à décider.
+            HStack(spacing: 6) {
+                legendItem(colour: .red, isDashed: false,
+                           text: "rougeur vers \(Format.iu(erythema)), avant l'objectif")
                 Spacer(minLength: 0)
             }
-
-            // Quand le maximum du jour n'atteint pas l'objectif, l'échelle est
-            // l'objectif : le dire évite de laisser croire qu'une barre à
-            // moitié pleine est une journée à moitié réussie.
-            if attainableIU < goalIU {
-                Text("Aujourd'hui, la peau ne permet que \(Format.iu(attainableIU)).")
-            }
+            .font(.caption2)
+            .foregroundStyle(.secondary)
         }
-        .font(.caption2)
-        .foregroundStyle(.secondary)
     }
 
     private func legendItem(colour: Color, isDashed: Bool, text: String) -> some View {
@@ -759,9 +741,11 @@ struct MedicalNotice: View {
 
     private static let full = """
     Cette application n'est pas un dispositif médical et ne pose aucun \
-    diagnostic. Elle applique des données publiées — apports de référence de \
-    Santé Canada et de l'Institute of Medicine, photobiologie cutanée, \
-    position du Soleil — à un modèle, et ne mesure rien dans votre sang.
+    diagnostic. Elle applique des données publiées — apports recommandés, \
+    photobiologie cutanée, position du Soleil — à un modèle, et ne mesure rien \
+    dans votre sang. Sur l'objectif quotidien, les institutions ne s'accordent \
+    pas : la page « Sur quoi reposent ces chiffres » expose le désaccord au \
+    lieu de trancher pour vous.
 
     La réponse individuelle varie d'un facteur deux à trois entre personnes de \
     même phototype. L'avis de votre médecin prime sur tout ce qui est affiché \

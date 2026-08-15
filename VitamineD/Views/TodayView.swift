@@ -237,7 +237,6 @@ struct TodayView: View {
             // font une rougeur.
             DualProgressBar(
                 vitaminDIU: model.todayTotalIU,
-                attainableIU: model.plan?.attainableIU ?? model.profile.dailyGoalIU,
                 goalIU: model.profile.dailyGoalIU,
                 erythemaIU: model.vitaminDAtErythema,
                 medFraction: model.todayTotalMEDFraction,

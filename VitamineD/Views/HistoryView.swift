@@ -82,16 +82,6 @@ struct HistoryView: View {
         }
     }
 
-    // MARK: - Avant l'hiver
-
-    /// Plan d'avant-hiver.
-    ///
-    /// Le compteur quotidien ne dit rien de la saison, et c'est précisément ce
-    /// qui manque au Québec : on peut suivre chaque créneau de mai à septembre
-    /// et se retrouver à plat en janvier. Cette carte rend visibles les deux
-    /// choses qui décident vraiment — le nombre de jours utiles qui restent, et
-    /// la vitesse à laquelle ce qu'on a déjà fabriqué disparaît.
-    @ViewBuilder
     // MARK: - Réserves
 
     /// Ce qui reste en circulation de tout ce qui a été synthétisé.
@@ -105,7 +95,7 @@ struct HistoryView: View {
     ///
     /// Le chiffre est présenté en **apport quotidien équivalent** plutôt qu'en
     /// réservoir : c'est la seule forme qui se compare à quelque chose de
-    /// connu, à savoir l'apport de référence de Santé Canada.
+    /// connu, à savoir la fourchette des apports recommandés.
     private var reserveCard: some View {
         let now = model.now
         let reserve = WinterPlanner.reserve(on: now, history: model.history)
@@ -118,9 +108,10 @@ struct HistoryView: View {
                            value: reserve > 1 ? "\(Int(daily.rounded())) UI/j" : "—",
                            detail: "en circulation",
                            tint: Theme.vitaminD)
-                MetricTile(label: "Référence",
-                           value: "\(Int(VitaminDTarget.referenceIntakeUnder70)) UI/j",
-                           detail: "Santé Canada")
+                MetricTile(label: "Recommandé",
+                           value: "\(Int(VitaminDTarget.dietaryReferenceUnder70))"
+                               + " à \(Int(VitaminDTarget.clinicalReferenceUpper))",
+                           detail: "UI/j selon la source")
                 MetricTile(label: "Demi-vie",
                            value: "\(Int(WinterPlanner.halfLifeDays)) jours",
                            detail: "du 25(OH)D")
@@ -187,11 +178,15 @@ struct HistoryView: View {
                     .lineStyle(.init(lineWidth: 1.5, dash: [4, 3]))
             }
 
-            RuleMark(y: .value("Référence", VitaminDTarget.referenceIntakeUnder70))
-                .foregroundStyle(.primary.opacity(0.45))
-                .lineStyle(.init(lineWidth: 1, dash: [3, 3]))
+            // Une bande, et non un trait : les institutions ne s'accordent pas
+            // sur la cible, et afficher l'une des deux comme « la » référence
+            // donnerait à un chiffre contesté une autorité qu'il n'a pas.
+            RectangleMark(
+                yStart: .value("Bas", VitaminDTarget.dietaryReferenceUnder70),
+                yEnd: .value("Haut", VitaminDTarget.clinicalReferenceUpper))
+                .foregroundStyle(.primary.opacity(0.10))
                 .annotation(position: .top, alignment: .leading, spacing: 1) {
-                    Text("apport de référence")
+                    Text("fourchette des apports recommandés")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -214,20 +209,39 @@ struct HistoryView: View {
     }
 
     private func reserveVerdict(daily: Double) -> String {
-        let reference = VitaminDTarget.referenceIntakeUnder70
+        let low = VitaminDTarget.dietaryReferenceUnder70
+        let high = VitaminDTarget.clinicalReferenceUpper
         let value = Int(daily.rounded())
-        if daily >= reference {
+
+        if daily >= high {
             return "Vos sorties soutiennent l'équivalent de \(value) UI par jour, "
-                + "soit au moins l'apport de référence. Le trait pointillé montre "
-                + "ce qu'il en resterait si vous cessiez de sortir dès aujourd'hui."
+                + "au-dessus de la fourchette entière des apports recommandés. Le "
+                + "trait pointillé montre ce qu'il en resterait si vous cessiez de "
+                + "sortir dès aujourd'hui."
         }
-        let share = Format.percent(daily / reference)
+        if daily >= low {
+            return "Vos sorties soutiennent l'équivalent de \(value) UI par jour, "
+                + "dans la fourchette des apports recommandés — plus près de sa borne "
+                + "basse ou haute selon l'institution qu'on retient. Le trait pointillé "
+                + "montre la pente si vous cessiez de sortir dès aujourd'hui."
+        }
+        let share = Format.percent(daily / low)
         return "Vos sorties soutiennent l'équivalent de \(value) UI par jour, "
-            + "soit \(share) de l'apport de référence. Le reste doit venir de "
+            + "soit \(share) de la borne la plus basse. Le reste doit venir de "
             + "l'assiette ou d'un supplément — et le trait pointillé montre la "
             + "pente si vous cessiez de sortir dès aujourd'hui."
     }
 
+    // MARK: - Avant l'hiver
+
+    /// Plan d'avant-hiver.
+    ///
+    /// Le compteur quotidien ne dit rien de la saison, et c'est précisément ce
+    /// qui manque au Québec : on peut suivre chaque créneau de mai à septembre
+    /// et se retrouver à plat en janvier. Cette carte rend visibles les deux
+    /// choses qui décident vraiment — le nombre de jours utiles qui restent, et
+    /// la vitesse à laquelle ce qu'on a déjà fabriqué disparaît.
+    @ViewBuilder
     private var winterCard: some View {
         if let plan = model.winterPlan {
             Card(title: plan.hasStarted ? "Hiver vitaminique" : "Avant l'hiver",

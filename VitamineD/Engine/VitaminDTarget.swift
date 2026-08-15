@@ -1,38 +1,60 @@
 import Foundation
 
-/// Suggestion d'objectif quotidien, à partir de ce que les autorités publient.
+/// Suggestion d'objectif quotidien, et l'état réel du débat qui l'entoure.
 ///
-/// ## D'où viennent les chiffres
+/// ## Il n'y a pas de chiffre officiel unique
 ///
-/// L'ancrage est l'apport nutritionnel recommandé de Santé Canada, repris de
-/// l'Institute of Medicine : 600 UI par jour jusqu'à 70 ans, 800 au-delà, avec
-/// un apport maximal tolérable de 4 000 UI. Ce sont les seules valeurs de ce
-/// fichier qui aient une autorité réglementaire.
+/// C'est le point de départ, et il est souvent escamoté. Deux recommandations
+/// coexistent chez des institutions également sérieuses, et elles diffèrent
+/// d'un facteur trois.
 ///
-/// S'y ajoute une correction de corpulence, et celle-là relève de la
-/// littérature plutôt que de la réglementation. La vitamine D est liposoluble :
-/// elle se répartit dans la masse grasse, où elle devient moins disponible. À
-/// dose égale, la concentration sanguine monte d'environ 13 nmol/L par
-/// 1 000 UI chez une personne de corpulence normale, 11,5 en surpoids et 8,6
-/// en obésité. Les auteurs qui en tirent une posologie recommandent une fois
-/// et demie la dose en surpoids, deux à trois fois en obésité.
+/// L'**Institute of Medicine** (2011), dont les valeurs sont reprises par Santé
+/// Canada et la FDA, fixe l'apport de référence à 600 UI par jour jusqu'à
+/// 70 ans, 800 au-delà. La cible est une concentration sanguine de 50 nmol/L,
+/// jugée suffisante pour la santé osseuse.
 ///
-/// ## Ce que la suggestion n'est pas
+/// L'**Endocrine Society** (2011) vise 75 nmol/L et en déduit 1 500 à 2 000 UI
+/// par jour pour un adulte. Le désaccord ne porte pas sur l'arithmétique mais
+/// sur le seuil de suffisance : ce sont deux définitions différentes de « ne
+/// pas manquer ».
 ///
-/// Ce n'est pas une prescription, et l'application n'a aucun moyen de savoir
-/// ce que contient votre sang. L'apport recommandé est de surcroît défini pour
-/// une exposition solaire minimale : l'utiliser comme cible de synthèse
-/// cutanée est une simplification volontaire, et elle penche du côté prudent
-/// — on ne peut pas s'intoxiquer à la vitamine D par le seul soleil, le
-/// photo-équilibre s'en charge.
+/// ## Et l'arithmétique du chiffre bas est contestée
 ///
-/// Un avis médical prime sur tout ce qui suit, sans exception.
+/// Veugelers et Ekwaru ont montré en 2014 que l'IOM avait commis une erreur
+/// statistique dans le calcul de son apport recommandé : en reprenant ses
+/// propres données, l'apport garantissant 50 nmol/L chez 97,5 % des gens — la
+/// définition même d'un apport recommandé — ressort à près de 8 900 UI par
+/// jour, non à 600. Des statisticiens indépendants ont confirmé le calcul.
+///
+/// Cela ne veut pas dire qu'il faut prendre 8 900 UI : cette valeur extrapole
+/// au-delà des données disponibles, qui ne comportaient personne au-dessus de
+/// 2 400 UI par jour, et l'IOM en conteste la portée. Mais cela veut dire que
+/// **600 UI ne peut pas être présenté comme un chiffre solide**. C'est la borne
+/// basse d'une fourchette, et la plus fragile des deux.
+///
+/// ## Ce que l'application en fait
+///
+/// Elle affiche la fourchette et suggère son milieu, plutôt que de nommer une
+/// autorité. Un objectif ne détermine d'ailleurs jamais l'exposition : la
+/// limite cutanée passe toujours devant, et un objectif hors de portée est
+/// signalé comme tel au lieu de pousser à rester dehors.
+///
+/// Un avis médical prime sur tout ce qui précède, et une prise de sang tranche
+/// ce qu'aucun modèle ne peut deviner.
 enum VitaminDTarget {
 
-    /// Apport nutritionnel recommandé, Santé Canada / IOM.
-    static let referenceIntakeUnder70 = 600.0
-    static let referenceIntakeOver70 = 800.0
-    /// Apport maximal tolérable pour un adulte.
+    /// Borne basse : apport nutritionnel de référence de l'Institute of
+    /// Medicine (2011), repris par Santé Canada. Vise 50 nmol/L.
+    static let dietaryReferenceUnder70 = 600.0
+    static let dietaryReferenceOver70 = 800.0
+
+    /// Borne haute : recommandation de l'Endocrine Society pour un adulte,
+    /// qui vise 75 nmol/L.
+    static let clinicalReferenceLower = 1_500.0
+    static let clinicalReferenceUpper = 2_000.0
+
+    /// Apport maximal tolérable pour un adulte, valeur sur laquelle les deux
+    /// camps s'accordent.
     static let tolerableUpperIntake = 4_000.0
 
     /// Corpulence, au sens où elle change le besoin.
@@ -51,12 +73,15 @@ enum VitaminDTarget {
             }
         }
 
-        /// Multiplicateur appliqué à l'apport de référence.
+        /// Multiplicateur appliqué à la fourchette.
         ///
-        /// Le bas de la fourchette publiée est retenu — deux fois plutôt que
-        /// trois en obésité — parce qu'une suggestion trop haute pousserait à
-        /// s'exposer davantage, donc à dépenser du capital cutané, pour une
-        /// cible que rien ne vérifie.
+        /// La vitamine D est liposoluble : elle se répartit dans la masse
+        /// grasse, où elle devient moins disponible. À dose égale, la
+        /// concentration sanguine monte d'environ 13 nmol/L par 1 000 UI chez
+        /// une personne de corpulence normale, 11,5 en surpoids et 8,6 en
+        /// obésité. Les auteurs qui en tirent une posologie recommandent une
+        /// fois et demie la dose en surpoids, deux à trois fois en obésité ; le
+        /// bas de cette fourchette-là est retenu.
         var factor: Double {
             switch self {
             case .unknown, .normal: return 1.0
@@ -76,14 +101,16 @@ enum VitaminDTarget {
     }
 
     struct Suggestion: Equatable, Sendable {
-        /// Objectif suggéré, arrondi à la centaine et borné.
+        /// Objectif suggéré : le milieu de la fourchette, arrondi et borné.
         let dailyIU: Double
-        /// Apport de référence avant correction.
-        let referenceIU: Double
+        /// Borne basse, dérivée de l'apport de référence de l'IOM.
+        let lowerIU: Double
+        /// Borne haute, dérivée de la recommandation de l'Endocrine Society.
+        let upperIU: Double
         let bodyFactor: Double
         let bmi: Double?
         let category: BodyCategory
-        /// La suggestion a-t-elle été plafonnée par l'apport maximal tolérable ?
+        /// La borne haute a-t-elle été ramenée à l'apport maximal tolérable ?
         let wasCapped: Bool
     }
 
@@ -99,31 +126,38 @@ enum VitaminDTarget {
                            weightKilograms: Double?,
                            heightCentimetres: Double?) -> Suggestion {
 
-        let reference = age > 70 ? referenceIntakeOver70 : referenceIntakeUnder70
+        let low = age > 70 ? dietaryReferenceOver70 : dietaryReferenceUnder70
         let bmi = bodyMassIndex(weightKilograms: weightKilograms,
                                 heightCentimetres: heightCentimetres)
         let category = BodyCategory(bmi: bmi)
 
-        let raw = reference * category.factor
-        let capped = min(raw, tolerableUpperIntake)
-        // Arrondi à la centaine : un objectif à 900 UI se retient, un objectif
-        // à 897 donne une fausse impression de précision.
-        let rounded = (capped / 100).rounded() * 100
+        let lower = low * category.factor
+        let rawUpper = clinicalReferenceUpper * category.factor
+        let upper = min(rawUpper, tolerableUpperIntake)
 
-        return Suggestion(dailyIU: max(400, rounded),
-                          referenceIU: reference,
+        // Le milieu de la fourchette, faute d'argument décisif pour l'une ou
+        // l'autre de ses bornes. Arrondi à la centaine : un objectif à 1 297 UI
+        // donnerait une fausse impression de précision sur une valeur que la
+        // littérature ne connaît qu'à un facteur trois près.
+        let middle = ((lower + upper) / 2 / 100).rounded() * 100
+
+        return Suggestion(dailyIU: max(400, min(middle, tolerableUpperIntake)),
+                          lowerIU: lower,
+                          upperIU: upper,
                           bodyFactor: category.factor,
                           bmi: bmi,
                           category: category,
-                          wasCapped: raw > tolerableUpperIntake)
+                          wasCapped: rawUpper > tolerableUpperIntake)
     }
 
     /// Phrase qui explique la suggestion, sans jamais la présenter comme une
-    /// prescription.
+    /// prescription ni s'abriter derrière une autorité.
     static func rationale(for suggestion: Suggestion, age: Int) -> String {
-        var text = "Apport de référence de Santé Canada pour "
-        text += age > 70 ? "plus de 70 ans" : "un adulte"
-        text += " : \(Int(suggestion.referenceIU)) UI par jour. "
+        var text = "Les recommandations vont de \(Int(suggestion.lowerIU)) UI "
+        text += "— apport de référence de l'Institute of Medicine, repris par "
+        text += "Santé Canada — à \(Int(suggestion.upperIU)) UI, recommandation "
+        text += "de l'Endocrine Society. Elles ne visent pas la même "
+        text += "concentration sanguine, d'où l'écart. "
 
         switch suggestion.category {
         case .unknown:
@@ -134,13 +168,15 @@ enum VitaminDTarget {
         case .overweight, .obese:
             let percent = Int((suggestion.bodyFactor - 1) * 100)
             text += "La vitamine D étant liposoluble, elle se dilue dans la masse grasse : "
-            text += "la littérature suggère environ \(percent) % de plus dans votre cas."
+            text += "la fourchette est relevée d'environ \(percent) % dans votre cas."
         }
 
         if suggestion.wasCapped {
-            text += " La valeur est plafonnée à l'apport maximal tolérable de "
+            text += " La borne haute est ramenée à l'apport maximal tolérable de "
             text += "\(Int(tolerableUpperIntake)) UI."
         }
+
+        text += " La valeur proposée en est le milieu."
         return text
     }
 }

@@ -16,6 +16,7 @@ struct EvidenceView: View {
             VStack(spacing: 16) {
                 preamble
                 referenceCard
+                disputeCard
                 bodyCard
                 skinCard
                 yourGoal
@@ -34,11 +35,17 @@ struct EvidenceView: View {
         Card {
             Text("""
             Trois familles de chiffres se croisent dans cette application, et \
-            elles n'ont pas du tout le même poids. Les apports de référence sont \
-            réglementaires. La correction de corpulence vient de la littérature, \
-            qui est cohérente mais moins tranchée. Les seuils cutanés, enfin, \
-            sont des moyennes de population appliquées à votre peau, que \
-            personne n'a mesurée.
+            aucune n'est solide au même degré. Les apports recommandés sont \
+            l'objet d'un désaccord ouvert entre institutions, et le plus bas \
+            d'entre eux est contesté jusque dans son calcul. La correction de \
+            corpulence vient de la littérature, cohérente mais moins tranchée. \
+            Les seuils cutanés, enfin, sont des moyennes de population \
+            appliquées à votre peau, que personne n'a mesurée.
+
+            Rien de tout cela n'est présenté ici comme une vérité \
+            administrative. Ce sont des repères publiés, avec leurs auteurs et \
+            leurs limites, et vous restez libre de fixer votre objectif où bon \
+            vous semble.
             """)
             .font(.footnote)
             .foregroundStyle(.secondary)
@@ -48,29 +55,71 @@ struct EvidenceView: View {
     // MARK: - Apports de référence
 
     private var referenceCard: some View {
-        Card(title: "L'apport de référence", systemImage: "text.book.closed") {
-            row("Jusqu'à 70 ans",
-                "\(Int(VitaminDTarget.referenceIntakeUnder70)) UI/jour",
-                tint: Theme.vitaminD)
+        Card(title: "Il n'y a pas de chiffre officiel", systemImage: "text.book.closed") {
+            row("Institute of Medicine, repris par Santé Canada",
+                "\(Int(VitaminDTarget.dietaryReferenceUnder70)) UI/jour")
             GoldRule()
-            row("Au-delà de 70 ans",
-                "\(Int(VitaminDTarget.referenceIntakeOver70)) UI/jour",
-                tint: Theme.vitaminD)
+            row("Endocrine Society",
+                "\(Int(VitaminDTarget.clinicalReferenceLower)) à "
+                    + "\(Int(VitaminDTarget.clinicalReferenceUpper)) UI/jour")
             GoldRule()
             row("Apport maximal tolérable",
                 "\(Int(VitaminDTarget.tolerableUpperIntake)) UI/jour")
 
             Text("""
-            Ce sont les valeurs de Santé Canada, reprises de l'Institute of \
-            Medicine, et les seules de cette page à avoir une autorité \
-            réglementaire. Une précision compte : elles sont définies pour un \
-            apport alimentaire, chez des personnes à exposition solaire \
-            minimale. Les employer comme cible de synthèse cutanée est une \
-            simplification volontaire, et elle penche du côté prudent — on ne \
-            s'intoxique pas à la vitamine D par le seul Soleil, le \
-            photo-équilibre de la peau s'en charge.
+            Deux institutions également sérieuses, un écart d'un facteur trois. \
+            Le désaccord ne porte pas sur l'arithmétique mais sur le seuil de \
+            suffisance : l'Institute of Medicine vise 50 nmol/L dans le sang, \
+            l'Endocrine Society 75. Ce sont deux définitions différentes de \
+            « ne pas manquer », et aucune des deux n'est la bonne réponse \
+            évidente.
             """)
             .font(.footnote)
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    /// Le chiffre bas est en outre contesté dans son calcul même.
+    ///
+    /// Ce n'est pas un détail d'école : c'est la raison pour laquelle
+    /// l'application ne présente aucune de ces valeurs comme une autorité.
+    private var disputeCard: some View {
+        Card(title: "Et le chiffre bas est contesté", systemImage: "exclamationmark.bubble") {
+            Text("""
+            Veugelers et Ekwaru ont montré en 2014 que l'Institute of Medicine \
+            avait commis une erreur statistique dans le calcul de son apport \
+            recommandé. En reprenant ses propres données, l'apport qui \
+            garantirait 50 nmol/L chez 97,5 % des gens — la définition même d'un \
+            apport recommandé — ressort à près de 8 900 UI par jour, et non à \
+            600. Des statisticiens indépendants ont refait le calcul et l'ont \
+            confirmé.
+
+            Cela ne veut pas dire qu'il faille prendre 8 900 UI. Cette valeur \
+            extrapole bien au-delà des données disponibles, qui ne comportaient \
+            personne au-dessus de 2 400 UI par jour, et l'institution en \
+            conteste la portée. Mais cela veut dire qu'un apport de 600 UI ne \
+            peut pas être présenté comme un chiffre solide : c'est la borne \
+            basse d'une fourchette, et la plus fragile des deux.
+
+            D'où le parti pris de cette application : afficher la fourchette et \
+            en proposer le milieu, plutôt que de nommer une autorité. Un \
+            objectif ne commande d'ailleurs jamais l'exposition — la limite \
+            cutanée passe toujours devant.
+            """)
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+
+            GoldRule()
+
+            Text("""
+            Une précision qui vaut pour toutes ces valeurs : elles sont définies \
+            pour un apport *alimentaire*, chez des personnes à exposition \
+            solaire minimale. Les employer comme cible de synthèse cutanée est \
+            une simplification volontaire, et elle penche du côté prudent — on \
+            ne s'intoxique pas à la vitamine D par le seul Soleil, le \
+            photo-équilibre de la peau s'en charge.
+            """)
+            .font(.caption)
             .foregroundStyle(.secondary)
         }
     }
@@ -154,7 +203,9 @@ struct EvidenceView: View {
             row("Objectif retenu", Format.iu(model.profile.dailyGoalIU),
                 tint: Theme.vitaminD)
             GoldRule()
-            row("Suggestion", Format.iu(suggestion.dailyIU))
+            row("Fourchette publiée",
+                "\(Int(suggestion.lowerIU)) à \(Int(suggestion.upperIU)) UI")
+            row("Milieu, proposé par défaut", Format.iu(suggestion.dailyIU))
             row("Corpulence", suggestion.category.title)
             if let bmi = suggestion.bmi {
                 row("IMC", String(format: "%.1f", bmi))

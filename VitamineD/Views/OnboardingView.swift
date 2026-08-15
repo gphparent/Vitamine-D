@@ -228,12 +228,13 @@ struct OnboardingView: View {
                 .font(.largeTitle.weight(.semibold))
 
             Text("""
-            L'ancrage est l'apport de référence de Santé Canada : \
-            \(Int(suggestion.referenceIU)) UI par jour \
-            \(age > 70 ? "au-delà de 70 ans" : "pour un adulte").
+            Il n'existe pas de chiffre officiel unique. Les recommandations \
+            vont de \(Int(suggestion.lowerIU)) à \(Int(suggestion.upperIU)) UI \
+            par jour selon l'institution, parce qu'elles ne visent pas la même \
+            concentration sanguine.
 
             La vitamine D étant liposoluble, elle se dilue dans la masse grasse. \
-            Votre taille et votre poids permettent d'ajuster la suggestion — \
+            Votre taille et votre poids permettent d'ajuster la fourchette — \
             c'est facultatif, et cela ne change aucune durée d'exposition.
             """)
             .font(.body)
