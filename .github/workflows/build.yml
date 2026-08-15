@@ -237,27 +237,35 @@ jobs:
           printf '%s' "$ASC_PRIVATE_KEY" > "$RUNNER_TEMP/private_keys/AuthKey_$ASC_KEY_ID.p8"
           chmod 600 "$RUNNER_TEMP/private_keys/AuthKey_$ASC_KEY_ID.p8"
 
-      - name: Archiver en signature locale
+      - name: Archiver en signature de distribution
         run: |
           set -o pipefail
-          # Trois tentatives ont été nécessaires pour trouver la bonne, et les
-          # deux échecs valent d'être consignés.
+          # Quatre tentatives, et chacune a appris quelque chose. Les voici,
+          # parce que la bonne réponse ne se devine pas et que la prochaine
+          # personne qui touchera à ce fichier mérite de ne pas recommencer.
           #
-          # Sans signature du tout (`CODE_SIGNING_ALLOWED=NO`), Xcode saute
-          # l'étape qui traite le fichier de droits : l'archive n'en porte
-          # aucun, et l'export, n'ayant rien à reprendre, signe avec les quatre
-          # droits par défaut du profil. C'est ainsi que trois versions sont
-          # parties chez Apple sans HealthKit ni WeatherKit.
+          # 1. Sans signature (`CODE_SIGNING_ALLOWED=NO`) : Xcode saute
+          #    l'étape qui traite le fichier de droits. L'archive n'en porte
+          #    aucun, l'export n'a rien à reprendre, et l'application part avec
+          #    quatre droits par défaut. Trois versions sont ainsi arrivées
+          #    chez Apple sans HealthKit ni WeatherKit.
           #
-          # Avec la signature infonuagique, Xcode réclame un profil de
-          # *développement*, qui exige au moins un appareil enregistré : « Your
-          # team has no devices from which to generate a provisioning
-          # profile ». Impasse pour un compte qui n'en a aucun.
+          # 2. Signature automatique telle quelle : « Your team has no devices
+          #    from which to generate a provisioning profile ». Le message
+          #    complet précisait « iOS App *Development* » — c'est là qu'était
+          #    l'indice.
           #
-          # La signature ad hoc — l'identité « - » — ne s'adresse à personne :
-          # ni Apple, ni profil, ni appareil. Elle exécute pourtant l'étape qui
-          # incorpore les droits, ce qui est tout ce dont l'export a besoin
-          # pour les reprendre et demander le bon profil de distribution.
+          # 3. Injection à la main du fichier .xcent dans l'archive : ignorée.
+          #    L'export ne s'en sert pas pour décider de ce qu'il signe.
+          #
+          # 4. Signature ad hoc : « Ad Hoc code signing is not allowed with
+          #    SDK iOS 26.5 ». Refusée par la plateforme.
+          #
+          # D'où celle-ci. Xcode réclamait un profil de développement parce que
+          # c'est l'identité par défaut du SDK ; on lui demande explicitement
+          # une identité de *distribution*, dont le profil ne dépend d'aucun
+          # appareil enregistré. La signature a lieu, donc les droits sont
+          # incorporés, et l'export n'a plus qu'à les reprendre.
           #
           # Le numéro de version interne doit croître à chaque téléversement,
           # sans quoi Apple refuse le paquet comme doublon. Le compteur
@@ -268,13 +276,14 @@ jobs:
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/VitamineD.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/private_keys/AuthKey_$ASC_KEY_ID.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="-" \
-            PROVISIONING_PROFILE_SPECIFIER="" \
-            CODE_SIGNING_ALLOWED=YES \
-            CODE_SIGNING_REQUIRED=YES
+            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_IDENTITY="Apple Distribution"
 
       - name: Vérifier les droits de l'archive
         run: |
