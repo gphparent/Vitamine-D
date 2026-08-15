@@ -237,23 +237,16 @@ jobs:
           printf '%s' "$ASC_PRIVATE_KEY" > "$RUNNER_TEMP/private_keys/AuthKey_$ASC_KEY_ID.p8"
           chmod 600 "$RUNNER_TEMP/private_keys/AuthKey_$ASC_KEY_ID.p8"
 
-      - name: Archiver
+      - name: Archiver sans signer
         run: |
           set -o pipefail
-          # L'archive était auparavant produite sans signature. C'était une
-          # erreur, et elle a coûté cher : sans signature, Xcode n'exécute pas
-          # l'étape qui traite le fichier de droits, si bien que l'archive n'en
-          # contenait aucun. L'export réglait alors la signature sur les seuls
-          # droits par défaut du profil, et l'application partait chez Apple
-          # sans HealthKit ni WeatherKit — ce qui ne se voyait qu'à l'usage,
-          # sous la forme d'un « Missing com.apple.developer.healthkit
-          # entitlement » au premier appel.
-          #
-          # La signature se fait donc ici, en signature infonuagique : munie de
-          # la clé d'API, la commande crée le certificat et le profil dont elle
-          # a besoin, et — c'est le point qui manquait — reporte sur
-          # l'identifiant d'application les capacités déclarées dans le fichier
-          # de droits.
+          # L'archive reste non signée, et il faut expliquer pourquoi, parce
+          # que la solution évidente ne marche pas. Signer ici pousse Xcode à
+          # réclamer un profil de *développement* — essayé, refusé : « Your
+          # team has no devices from which to generate a provisioning
+          # profile ». Un compte sans appareil enregistré ne peut pas en
+          # obtenir, et enregistrer un appareil demanderait l'identifiant
+          # matériel d'un iPhone pour une build qui ne s'y installera jamais.
           #
           # Le numéro de version interne doit croître à chaque téléversement,
           # sans quoi Apple refuse le paquet comme doublon. Le compteur
@@ -264,42 +257,102 @@ jobs:
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/VitamineD.xcarchive" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Déclarer les droits dans l'archive
+        run: |
+          set -e
+          # Le défaut qui a envoyé trois versions chez Apple sans HealthKit ni
+          # WeatherKit tient à ceci : l'étape qui traite le fichier de droits
+          # fait partie de la signature. Archive non signée, donc archive sans
+          # droits — et l'export, ne voyant rien à demander, signait avec les
+          # seuls droits par défaut du profil.
+          #
+          # Ce fichier-ci est celui qu'Xcode aurait écrit s'il avait signé.
+          # L'export le lit pour savoir quelles capacités réclamer à Apple, ce
+          # qui remet la chaîne d'aplomb sans exiger d'appareil enregistré.
+          APP="$RUNNER_TEMP/VitamineD.xcarchive/Products/Applications/VitamineD.app"
+          test -d "$APP" || { echo "archive introuvable"; exit 1; }
+          cp VitamineD.entitlements "$APP/archived-expanded-entitlements.xcent"
+          echo "--- droits déclarés à l'export ---"
+          cat "$APP/archived-expanded-entitlements.xcent"
+
+      - name: Exporter et vérifier les droits
+        run: |
+          set -o pipefail
+          # Deux exports valent mieux qu'un téléversement à l'aveugle. Le
+          # premier produit un paquet local, dont on peut lire la signature
+          # réelle : c'est la seule preuve que les droits ont survécu à toute
+          # la chaîne. Sans elle, une capacité manquante ne se découvre que
+          # dans l'application, des jours plus tard — ce qui vient d'arriver.
+          cat > "$RUNNER_TEMP/ExportLocal.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          PLIST
+
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/VitamineD.xcarchive" \
+            -exportPath "$RUNNER_TEMP/local" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportLocal.plist" \
             -allowProvisioningUpdates \
             -authenticationKeyPath "$RUNNER_TEMP/private_keys/AuthKey_$ASC_KEY_ID.p8" \
             -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            CODE_SIGN_STYLE=Automatic \
-            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER"
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
 
-      - name: Vérifier les droits réellement embarqués
+      - name: Lire la signature réelle du paquet
         run: |
           set -e
-          APP="$RUNNER_TEMP/VitamineD.xcarchive/Products/Applications/VitamineD.app"
-          echo "--- droits de $APP ---"
-          codesign -d --entitlements :- "$APP" 2>/dev/null || true
-          echo "----------------------"
+          cd "$RUNNER_TEMP/local"
+          IPA=$(ls *.ipa | head -1)
+          test -n "$IPA" || { echo "aucun .ipa produit"; exit 1; }
+          rm -rf verif && mkdir verif && cd verif
+          unzip -q "../$IPA"
+          APP=$(ls -d Payload/*.app | head -1)
 
-          # Le journal ne suffit pas : personne ne le relit. Une capacité
-          # absente doit faire échouer la compilation ici, pas se découvrir
-          # dans l'application trois versions plus tard.
+          echo "--- droits signés de $APP ---"
+          codesign -d --entitlements :- "$APP" 2>/dev/null || true
+          echo "-----------------------------"
+
+          # Un journal ne se relit pas. Une capacité absente doit arrêter la
+          # chaîne ici, et non se découvrir à l'usage trois versions plus tard.
+          manquant=0
           for droit in com.apple.developer.healthkit com.apple.developer.weatherkit; do
             if codesign -d --entitlements :- "$APP" 2>/dev/null | grep -q "$droit"; then
               echo "✓ $droit"
             else
-              echo "✗ $droit manquant dans l'archive signée"
-              exit 1
+              echo "✗ $droit absent du paquet signé"
+              manquant=1
             fi
           done
 
-      - name: Exporter et téléverser
+          if [ "$manquant" = "1" ]; then
+            echo
+            echo "Les capacités ne sont pas activées sur l'identifiant"
+            echo "d'application. À faire une seule fois, sur"
+            echo "developer.apple.com ▸ Certificates, Identifiers & Profiles ▸"
+            echo "Identifiers ▸ ca.gphparent.VitamineD : cocher HealthKit et"
+            echo "WeatherKit, puis relancer cette exécution."
+            exit 1
+          fi
+
+      - name: Téléverser sur TestFlight
         run: |
           set -o pipefail
           # `destination: upload` fait envoyer l'archive directement à App
           # Store Connect par xcodebuild, sans passer par un outil tiers.
-          # C'est aussi ici que la signature de distribution est apposée :
-          # muni de la clé d'API, xcodebuild crée le certificat et le profil
-          # App Store dont il a besoin, sans exiger le moindre appareil.
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
