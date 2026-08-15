@@ -243,8 +243,18 @@ struct ExposureSessionTests {
         #expect(progress.medBySide.back == 0)
     }
 
-    @Test("Couché, la synthèse tourne à la moitié du débit")
-    func lyingDownHalvesTheSynthesis() {
+    @Test("Couché sous un Soleil haut, la synthèse dépasse celle d'un corps debout")
+    func lyingDownBeatsStandingUnderAHighSun() {
+        // Le défaut relevé par l'utilisateur : l'application divisait la
+        // synthèse par deux dès qu'on se couchait, au motif qu'une moitié
+        // seulement du corps voit le ciel. C'était compter la géométrie deux
+        // fois — l'étalonnage est mesuré sur des gens debout, et un corps
+        // debout n'a jamais présenté au Soleil que le tiers de sa peau.
+        //
+        // Au midi solaire du 21 juin à Montréal, le Soleil culmine vers 68° :
+        // un corps debout le reçoit de haut, donc mal ; un corps couché le
+        // reçoit de plein fouet. La récolte est plus grande couché, ce que
+        // savent d'expérience tous ceux qui se sont fait bronzer.
         let end = noon.addingTimeInterval(30 * 60)
         let upright = SessionIntegrator.progress(
             for: session(startingAt: noon), at: end,
@@ -253,10 +263,31 @@ struct ExposureSessionTests {
             for: lyingSession(startingAt: noon), at: end,
             environment: .standard, uvIndexAt: fixedUV(8))
 
-        #expect(abs(lying.rawVitaminDIU - upright.rawVitaminDIU / 2) < 0.5)
-        // La dose érythémale, elle, ne dépend pas de la surface exposée : la
-        // peau qui regarde le Soleil prend le même éclairement dans les deux
-        // cas.
+        #expect(lying.rawVitaminDIU > upright.rawVitaminDIU * 1.2)
+        #expect(lying.rawVitaminDIU < upright.rawVitaminDIU * 1.7)
+
+        // La dose érythémale, elle, ne dépend pas de la posture : le ventre
+        // d'un dormeur, horizontal, reçoit exactement l'indice UV annoncé, et
+        // l'épaule d'un marcheur à peu près autant.
+        #expect(abs(lying.medFraction - upright.medFraction) < 0.001)
+    }
+
+    @Test("Sous un Soleil bas, se coucher fait perdre")
+    func lyingDownLosesUnderALowSun() {
+        // La bascule tient à la géométrie seule : un corps debout est un
+        // cylindre vertical, qui offre sa plus grande surface au Soleil quand
+        // celui-ci rase l'horizon. En fin d'après-midi, rester debout rapporte
+        // davantage — l'inverse exact de midi.
+        let evening = noon.addingTimeInterval(5.5 * 3600)
+        let end = evening.addingTimeInterval(30 * 60)
+        let upright = SessionIntegrator.progress(
+            for: session(startingAt: evening), at: end,
+            environment: .standard, uvIndexAt: fixedUV(3))
+        let lying = SessionIntegrator.progress(
+            for: lyingSession(startingAt: evening), at: end,
+            environment: .standard, uvIndexAt: fixedUV(3))
+
+        #expect(lying.rawVitaminDIU < upright.rawVitaminDIU)
         #expect(abs(lying.medFraction - upright.medFraction) < 0.001)
     }
 

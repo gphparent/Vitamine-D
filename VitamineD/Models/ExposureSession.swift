@@ -27,14 +27,17 @@ enum BodySide: Int, Codable, CaseIterable, Identifiable, Sendable {
 
     var id: Int { rawValue }
 
-    /// Part de la surface découverte réellement tournée vers le Soleil.
-    ///
-    /// Couché, c'est une moitié. Le débit de synthèse est donc divisé par deux
-    /// — pas celui de l'érythème, qui ne dépend pas de la surface exposée mais
-    /// de l'éclairement reçu par la peau qui l'est.
-    var illuminatedShare: Double { self == .whole ? 1 : 0.5 }
-
     var isLyingDown: Bool { self != .whole }
+
+    /// Correction géométrique de cette posture, rapportée à la position debout.
+    ///
+    /// Le calcul est délégué au moteur, qui le tire de la hauteur du Soleil :
+    /// se coucher désavantage quand le Soleil est bas et avantage quand il est
+    /// haut, et le point de bascule tombe vers 45°. Voir
+    /// ``UVEngine/postureFactor(lyingDown:solarElevation:)``.
+    func postureFactor(solarElevation: Double) -> Double {
+        UVEngine.postureFactor(lyingDown: isLyingDown, solarElevation: solarElevation)
+    }
 
     var title: String {
         switch self {
@@ -321,7 +324,8 @@ enum SessionIntegrator {
                                        uvIndex: uvIndexAt(midpoint),
                                        solarElevation: position.elevation,
                                        environment: environment,
-                                       illuminatedShare: side.illuminatedShare)
+                                       postureFactor: side.postureFactor(
+                                        solarElevation: position.elevation))
             let minutes = slice / 60
             raw.add(rates.vitaminDIUPerMinute * minutes, facing: side)
             med.add(rates.medFractionPerMinute * minutes, facing: side)
@@ -429,7 +433,8 @@ enum SessionIntegrator {
                                        uvIndex: uvIndexAt(midpoint),
                                        solarElevation: position.elevation,
                                        environment: environment,
-                                       illuminatedShare: side.illuminatedShare)
+                                       postureFactor: side.postureFactor(
+                                        solarElevation: position.elevation))
             raw.add(rates.vitaminDIUPerMinute * (step / 60), facing: side)
             med.add(rates.medFractionPerMinute * (step / 60), facing: side)
             cursor = cursor.addingTimeInterval(step)

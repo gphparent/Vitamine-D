@@ -314,30 +314,79 @@ struct UVEngineTests {
                 * throughFabric / bare.exposure.effectiveExposedFraction * 0.99)
     }
 
-    @Test("La part éclairée n'agit que sur la synthèse")
-    func illuminatedShareLeavesErythemaAlone() {
-        let whole = UVEngine.rates(profile: .default, uvIndex: 8, solarElevation: 60)
-        let half = UVEngine.rates(profile: .default, uvIndex: 8, solarElevation: 60,
-                                  illuminatedShare: 0.5)
+    @Test("La posture n'agit que sur la synthèse")
+    func postureLeavesErythemaAlone() {
+        let standing = UVEngine.rates(profile: .default, uvIndex: 8, solarElevation: 60)
+        let lying = UVEngine.rates(profile: .default, uvIndex: 8, solarElevation: 60,
+                                   postureFactor: 0.5)
 
-        // Moitié de peau tournée vers le Soleil, moitié de vitamine D.
-        #expect(abs(half.vitaminDIUPerMinute - whole.vitaminDIUPerMinute / 2) < 0.001)
+        #expect(abs(lying.vitaminDIUPerMinute - standing.vitaminDIUPerMinute / 2) < 0.001)
 
         // Mais l'éclairement reçu par la peau qui est au Soleil ne change pas :
         // c'est une puissance par unité de surface, et elle ne se divise pas
         // parce qu'il y a moins de surface.
-        #expect(half.medFractionPerMinute == whole.medFractionPerMinute)
-        #expect(half.erythemalJoulesPerMinute == whole.erythemalJoulesPerMinute)
+        #expect(lying.medFractionPerMinute == standing.medFractionPerMinute)
+        #expect(lying.erythemalJoulesPerMinute == standing.erythemalJoulesPerMinute)
     }
 
-    @Test("Une part éclairée absurde est ramenée dans les bornes")
-    func illuminatedShareIsClamped() {
+    @Test("Une correction de posture absurde est ramenée dans les bornes")
+    func postureFactorIsClamped() {
         let normal = UVEngine.rates(profile: .default, uvIndex: 8, solarElevation: 60)
         let tooMuch = UVEngine.rates(profile: .default, uvIndex: 8, solarElevation: 60,
-                                     illuminatedShare: 4)
+                                     postureFactor: 12)
         let negative = UVEngine.rates(profile: .default, uvIndex: 8, solarElevation: 60,
-                                      illuminatedShare: -1)
-        #expect(tooMuch.vitaminDIUPerMinute == normal.vitaminDIUPerMinute)
+                                      postureFactor: -1)
+        #expect(abs(tooMuch.vitaminDIUPerMinute - 3 * normal.vitaminDIUPerMinute) < 0.001)
         #expect(negative.vitaminDIUPerMinute == 0)
+    }
+
+    // MARK: - Géométrie de la posture
+
+    @Test("Un corps debout ne présente au Soleil qu'une fraction de sa peau")
+    func standingBodyNeverCatchesEverything() {
+        // Le point que l'utilisateur a relevé : aucune posture n'expose la peau
+        // entière, il y faudrait des miroirs. Un corps debout capte bien un
+        // Soleil de flanc et mal un Soleil qui lui tombe sur la tête.
+        for elevation in stride(from: 10.0, through: 89.0, by: 1.0) {
+            let ratio = UVEngine.standingIrradianceRatio(solarElevation: elevation)
+            #expect(ratio > 0 && ratio < 1)
+        }
+        #expect(UVEngine.standingIrradianceRatio(solarElevation: 15)
+                > UVEngine.standingIrradianceRatio(solarElevation: 75))
+        #expect(UVEngine.standingIrradianceRatio(solarElevation: 0) == 0)
+    }
+
+    @Test("Se coucher ne paie qu'à Soleil haut, et bascule à la règle de l'ombre")
+    func lyingDownOnlyPaysWhenTheSunIsHigh() throws {
+        // La correction n'est pas d'une moitié : elle vaut moins que 1 quand le
+        // Soleil est bas, plus que 1 quand il est haut. Le point de bascule
+        // tombe sur la règle de l'ombre — retrouvée ici par une voie purement
+        // géométrique, sans qu'aucune constante ne l'y force.
+        #expect(UVEngine.postureFactor(lyingDown: true, solarElevation: 20) < 0.8)
+        #expect(UVEngine.postureFactor(lyingDown: true, solarElevation: 70) > 1.3)
+
+        var crossover: Double?
+        for elevation in stride(from: 10.0, through: 89.0, by: 0.5)
+        where UVEngine.postureFactor(lyingDown: true, solarElevation: elevation) >= 1 {
+            crossover = elevation
+            break
+        }
+        let found = try #require(crossover)
+        #expect(abs(found - UVEngine.optimalSynthesisElevation) < 4)
+
+        // Debout reste l'étalon, quelle que soit la hauteur du Soleil.
+        #expect(UVEngine.postureFactor(lyingDown: false, solarElevation: 20) == 1)
+        #expect(UVEngine.postureFactor(lyingDown: false, solarElevation: 70) == 1)
+    }
+
+    @Test("La correction de posture croît continûment avec la hauteur du Soleil")
+    func postureFactorIsMonotonic() {
+        var previous = 0.0
+        for elevation in stride(from: 10.0, through: 89.0, by: 1.0) {
+            let value = UVEngine.postureFactor(lyingDown: true, solarElevation: elevation)
+            #expect(value >= previous - 1e-9)
+            #expect(value > 0 && value <= 3)
+            previous = value
+        }
     }
 }

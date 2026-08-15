@@ -251,9 +251,7 @@ struct OutingSection: View {
 
                 Text("""
                 Couché, la moitié du corps qui regarde le ciel prend toute la \
-                dose, et l'autre n'en prend aucune. La synthèse tourne donc à \
-                la moitié du débit d'une position debout — mais le coup de \
-                soleil, lui, se prépare aussi vite.
+                dose, et l'autre n'en prend aucune. \(postureVerdict)
 
                 Se retourner à mi-parcours donne la même vitamine D pour la \
                 moitié du capital cutané sur chaque moitié. C'est le seul geste \
@@ -263,13 +261,43 @@ struct OutingSection: View {
                 .foregroundStyle(.secondary)
             } else {
                 Text("Debout ou en marche, le corps pivote : toute la peau "
-                     + "découverte compte comme une seule pièce. Passez à "
-                     + "« Ventre » ou « Dos » si vous vous allongez — les deux "
-                     + "moitiés se comptent alors séparément.")
+                     + "découverte compte comme une seule pièce. Aucune position "
+                     + "n'expose la peau entière au Soleil — il y faudrait des "
+                     + "miroirs — et le calcul est étalonné sur des mesures "
+                     + "faites debout. Passez à « Ventre » ou « Dos » si vous "
+                     + "vous allongez : les deux moitiés se comptent alors "
+                     + "séparément, et le débit est corrigé selon la hauteur du "
+                     + "Soleil.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// Ce que vaut la position couchée à cette heure-ci, chiffré.
+    ///
+    /// La comparaison n'est pas fixe. Un corps debout est un cylindre vertical :
+    /// il offre sa plus grande surface à un Soleil rasant, et sa plus petite à
+    /// un Soleil au zénith. Un corps couché fait exactement l'inverse. Le point
+    /// de bascule tombe vers 45° de hauteur — la règle de l'ombre.
+    private var postureVerdict: String {
+        guard let elevation = model.solarPosition?.elevation, elevation > 0 else {
+            return "Le Soleil est couché : la position ne change plus rien."
+        }
+        let factor = UVEngine.postureFactor(lyingDown: true, solarElevation: elevation)
+        if factor > 1.08 {
+            return "Le Soleil est assez haut pour que cela rapporte : la synthèse "
+                + "tourne à \(Format.multiplier(factor)) du débit d'une position "
+                + "debout, qui reçoit de haut un Soleil qu'elle capte mal. Le coup "
+                + "de soleil, lui, se prépare à la même vitesse."
+        }
+        if factor < 0.92 {
+            return "Mais le Soleil est bas, et un corps debout le reçoit de flanc : "
+                + "la synthèse ne tourne qu'à \(Format.multiplier(factor)) du débit "
+                + "d'une position debout. Se relever rapporterait davantage."
+        }
+        return "Le Soleil est à la hauteur où les deux positions se valent : "
+            + "debout ou couché, la synthèse tourne au même débit."
     }
 
     private var burnLevel: SessionProgress.BurnLevel {

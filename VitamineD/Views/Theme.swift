@@ -233,6 +233,14 @@ enum Format {
         "\(Int((fraction * 100).rounded())) %"
     }
 
+    /// Rapport d'une grandeur à une autre : « 1,4 fois », « 0,7 fois ».
+    ///
+    /// La locale est passée explicitement : sans elle, `String(format:)` s'en
+    /// tient à POSIX et écrirait « 1.4 fois » au milieu d'une phrase française.
+    static func multiplier(_ value: Double) -> String {
+        String(format: "%.1f fois", locale: .current, value)
+    }
+
     static func temperature(_ celsius: Double) -> String {
         celsius.isNaN ? "—" : "\(Int(celsius.rounded())) °C"
     }

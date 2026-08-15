@@ -137,14 +137,22 @@ final class AppModel {
         }
     }
 
-    /// Débits instantanés dans la tenue actuellement déclarée.
+    /// Débits instantanés dans la tenue et la posture actuellement déclarées.
+    ///
+    /// La posture compte autant que la tenue : couché sous un Soleil haut, la
+    /// récolte dépasse d'un quart celle d'un corps debout, et lui est inférieure
+    /// d'un tiers quand le Soleil est bas. Afficher le débit debout pendant une
+    /// sortie couchée reviendrait à annoncer une autre exposition que celle en
+    /// cours.
     var currentRates: DoseRates {
         guard let position = solarPosition,
               let sample = plan?.sample(nearest: now) else { return .zero }
         return UVEngine.rates(profile: profile,
                               uvIndex: sample.uvIndex,
                               solarElevation: position.elevation,
-                              environment: environment)
+                              environment: environment,
+                              postureFactor: currentSide.postureFactor(
+                                solarElevation: position.elevation))
     }
 
     // MARK: - Lumière et horloge interne

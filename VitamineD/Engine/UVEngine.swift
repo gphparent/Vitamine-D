@@ -191,19 +191,96 @@ enum UVEngine {
         return 1 - 0.75 * pow(cf, 3.4)
     }
 
+    // MARK: - Géométrie du corps
+
+    /// Part directe du rayonnement UV érythémal reçu sur une surface
+    /// horizontale, par ciel clair.
+    ///
+    /// Elle croît avec la hauteur du Soleil : le trajet atmosphérique se
+    /// raccourcit, la diffusion de Rayleigh emporte une part moindre du
+    /// faisceau. Aux hauteurs utiles à la vitamine D, elle va d'un tiers à
+    /// six dixièmes. La distinction compte ici parce que le faisceau direct
+    /// et le ciel diffus n'atteignent pas un corps de la même façon.
+    private static func directBeamFraction(solarElevation: Double) -> Double {
+        let sine = sin(solarElevation * .pi / 180)
+        guard sine > 0 else { return 0 }
+        return min(0.7, 0.62 * sqrt(sine))
+    }
+
+    /// Éclairement moyen sur l'ensemble de la peau d'un corps **debout**,
+    /// rapporté à l'éclairement horizontal que mesure l'indice UV.
+    ///
+    /// Le corps est traité comme un cylindre vertical. Pour le faisceau direct,
+    /// l'aire projetée d'un cylindre vaut cos(h)/π de son aire totale ; rapportée
+    /// à l'horizontale, qui reçoit sin(h), il reste cotan(h)/π. Pour le ciel
+    /// diffus, un point d'une paroi verticale ne voit qu'une demi-voûte, d'où un
+    /// facteur de forme de 0,5.
+    ///
+    /// Le résultat va de 0,7 à Soleil rasant à moins de 0,2 au zénith : un corps
+    /// debout capte mal un Soleil qui lui tombe sur la tête, et bien un Soleil
+    /// qui l'éclaire de flanc.
+    static func standingIrradianceRatio(solarElevation: Double) -> Double {
+        guard solarElevation > 0.5 else { return 0 }
+        let radians = solarElevation * .pi / 180
+        let direct = directBeamFraction(solarElevation: solarElevation)
+        let beam = direct * (cos(radians) / (.pi * sin(radians)))
+        let sky = (1 - direct) * 0.5
+        return beam + sky
+    }
+
+    /// Même grandeur pour un corps couché.
+    ///
+    /// La moitié tournée vers le ciel reçoit l'éclairement horizontal complet,
+    /// faisceau et diffus ensemble — c'est exactement ce que mesure l'indice UV.
+    /// L'autre moitié ne reçoit rien. D'où une demie, corrigée d'un cinquième
+    /// pour la courbure du corps et son propre ombrage : un dormeur n'est pas
+    /// une plaque plane. La valeur ne dépend pas de la hauteur du Soleil, celle-ci
+    /// étant déjà contenue dans l'indice UV horizontal.
+    static let lyingIrradianceRatio = 0.5 * 0.80
+
+    /// Correction de posture, rapportée à la position debout.
+    ///
+    /// ## Pourquoi ce n'est pas « une moitié »
+    ///
+    /// L'application divisait auparavant la synthèse par deux dès qu'on se
+    /// couchait, au motif qu'une moitié du corps seulement voit le ciel. C'était
+    /// compter la géométrie deux fois. La constante d'étalonnage est calée sur
+    /// un repère clinique mesuré sur des gens **debout** : elle contient déjà,
+    /// sans le dire, le fait qu'un corps debout ne présente jamais au Soleil que
+    /// le tiers environ de sa peau. Aucune posture n'expose la peau entière —
+    /// il y faudrait des miroirs.
+    ///
+    /// La bonne grandeur est donc le rapport d'une posture à l'autre, et il
+    /// n'est pas d'une moitié : il vaut environ 0,6 quand le Soleil est bas,
+    /// franchit 1 vers 45° de hauteur, et atteint 1,6 quand le Soleil est très
+    /// haut. Se coucher ne paie qu'à partir du moment où l'ombre devient plus
+    /// courte que soi — la règle que l'application enseigne déjà par ailleurs,
+    /// retrouvée ici par une voie entièrement indépendante.
+    static func postureFactor(lyingDown: Bool, solarElevation: Double) -> Double {
+        guard lyingDown else { return 1 }
+        let standing = standingIrradianceRatio(solarElevation: solarElevation)
+        guard standing > 0.01 else { return 1 }
+        return min(3, lyingIrradianceRatio / standing)
+    }
+
     // MARK: - Débits de dose
 
     /// Débits instantanés de vitamine D et de dose érythémale.
     ///
-    /// - Parameter illuminatedShare: part de la peau découverte réellement
-    ///   tournée vers le Soleil. Vaut 1 debout, une demie couché. N'agit que
-    ///   sur la synthèse : la dose érythémale se mesure par unité de peau
-    ///   éclairée, et ne dépend donc pas de la quantité qui l'est.
+    /// - Parameter postureFactor: correction géométrique de la posture,
+    ///   rapportée à la position debout qui vaut 1 et sert d'étalonnage. Voir
+    ///   ``postureFactor(lyingDown:solarElevation:)``.
+    ///
+    ///   N'agit que sur la synthèse. La dose érythémale se mesure par unité de
+    ///   peau éclairée : le ventre d'un dormeur, horizontal, reçoit exactement
+    ///   l'indice UV annoncé, et l'épaule d'un marcheur à peu près autant. La
+    ///   posture change la récolte, pas la vitesse à laquelle rougit le morceau
+    ///   de peau le plus exposé.
     static func rates(profile: UserProfile,
                       uvIndex: Double,
                       solarElevation: Double,
                       environment: EnvironmentFactors = .standard,
-                      illuminatedShare: Double = 1) -> DoseRates {
+                      postureFactor: Double = 1) -> DoseRates {
         guard uvIndex > 0, solarElevation > 0 else { return .zero }
 
         let exposure = profile.exposure
@@ -227,7 +304,7 @@ enum UVEngine {
             * uvIndex
             * efficiency
             * effectiveArea
-            * max(0, min(1, illuminatedShare))
+            * max(0, min(3, postureFactor))
             * profile.skinType.vitaminDFactor
             * profile.ageFactor
             * environment.skyViewFactor
