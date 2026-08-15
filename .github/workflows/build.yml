@@ -237,16 +237,27 @@ jobs:
           printf '%s' "$ASC_PRIVATE_KEY" > "$RUNNER_TEMP/private_keys/AuthKey_$ASC_KEY_ID.p8"
           chmod 600 "$RUNNER_TEMP/private_keys/AuthKey_$ASC_KEY_ID.p8"
 
-      - name: Archiver sans signer
+      - name: Archiver en signature locale
         run: |
           set -o pipefail
-          # L'archive reste non signée, et il faut expliquer pourquoi, parce
-          # que la solution évidente ne marche pas. Signer ici pousse Xcode à
-          # réclamer un profil de *développement* — essayé, refusé : « Your
+          # Trois tentatives ont été nécessaires pour trouver la bonne, et les
+          # deux échecs valent d'être consignés.
+          #
+          # Sans signature du tout (`CODE_SIGNING_ALLOWED=NO`), Xcode saute
+          # l'étape qui traite le fichier de droits : l'archive n'en porte
+          # aucun, et l'export, n'ayant rien à reprendre, signe avec les quatre
+          # droits par défaut du profil. C'est ainsi que trois versions sont
+          # parties chez Apple sans HealthKit ni WeatherKit.
+          #
+          # Avec la signature infonuagique, Xcode réclame un profil de
+          # *développement*, qui exige au moins un appareil enregistré : « Your
           # team has no devices from which to generate a provisioning
-          # profile ». Un compte sans appareil enregistré ne peut pas en
-          # obtenir, et enregistrer un appareil demanderait l'identifiant
-          # matériel d'un iPhone pour une build qui ne s'y installera jamais.
+          # profile ». Impasse pour un compte qui n'en a aucun.
+          #
+          # La signature ad hoc — l'identité « - » — ne s'adresse à personne :
+          # ni Apple, ni profil, ni appareil. Elle exécute pourtant l'étape qui
+          # incorpore les droits, ce qui est tout ce dont l'export a besoin
+          # pour les reprendre et demander le bon profil de distribution.
           #
           # Le numéro de version interne doit croître à chaque téléversement,
           # sans quoi Apple refuse le paquet comme doublon. Le compteur
@@ -259,27 +270,31 @@ jobs:
             -archivePath "$RUNNER_TEMP/VitamineD.xcarchive" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY=""
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="-" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGNING_REQUIRED=YES
 
-      - name: Déclarer les droits dans l'archive
+      - name: Vérifier les droits de l'archive
         run: |
           set -e
-          # Le défaut qui a envoyé trois versions chez Apple sans HealthKit ni
-          # WeatherKit tient à ceci : l'étape qui traite le fichier de droits
-          # fait partie de la signature. Archive non signée, donc archive sans
-          # droits — et l'export, ne voyant rien à demander, signait avec les
-          # seuls droits par défaut du profil.
-          #
-          # Ce fichier-ci est celui qu'Xcode aurait écrit s'il avait signé.
-          # L'export le lit pour savoir quelles capacités réclamer à Apple, ce
-          # qui remet la chaîne d'aplomb sans exiger d'appareil enregistré.
+          # Premier point de contrôle, avant l'export. Il distingue les deux
+          # façons dont la chaîne peut rompre : les droits absents ici sont un
+          # problème de compilation, absents seulement après l'export, un
+          # problème de profil.
           APP="$RUNNER_TEMP/VitamineD.xcarchive/Products/Applications/VitamineD.app"
-          test -d "$APP" || { echo "archive introuvable"; exit 1; }
-          cp VitamineD.entitlements "$APP/archived-expanded-entitlements.xcent"
-          echo "--- droits déclarés à l'export ---"
-          cat "$APP/archived-expanded-entitlements.xcent"
+          echo "--- droits de l'archive ---"
+          codesign -d --entitlements :- "$APP" 2>/dev/null || true
+          echo "---------------------------"
+          for droit in com.apple.developer.healthkit com.apple.developer.weatherkit; do
+            if codesign -d --entitlements :- "$APP" 2>/dev/null | grep -q "$droit"; then
+              echo "✓ $droit dans l'archive"
+            else
+              echo "✗ $droit absent de l'archive — le fichier de droits n'a pas été traité"
+              exit 1
+            fi
+          done
 
       - name: Exporter et vérifier les droits
         run: |
@@ -340,11 +355,13 @@ jobs:
 
           if [ "$manquant" = "1" ]; then
             echo
-            echo "Les capacités ne sont pas activées sur l'identifiant"
-            echo "d'application. À faire une seule fois, sur"
-            echo "developer.apple.com ▸ Certificates, Identifiers & Profiles ▸"
-            echo "Identifiers ▸ ca.gphparent.VitamineD : cocher HealthKit et"
-            echo "WeatherKit, puis relancer cette exécution."
+            echo "Les droits étaient dans l'archive — l'étape précédente l'a"
+            echo "vérifié — mais l'export ne les a pas repris. Deux causes"
+            echo "possibles : les capacités ne sont pas activées sur"
+            echo "l'identifiant d'application (developer.apple.com ▸"
+            echo "Identifiers ▸ ca.gphparent.VitamineD), ou le profil de"
+            echo "distribution date d'avant leur activation et doit être"
+            echo "régénéré."
             exit 1
           fi
 
