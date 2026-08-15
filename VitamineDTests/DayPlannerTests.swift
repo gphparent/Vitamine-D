@@ -504,6 +504,49 @@ struct DayPlannerTests {
         #expect(atErythema == 800)
     }
 
+    // MARK: - Ce que la journée permet
+
+    @Test("Le maximum du jour est atteignable, contrairement au plafond")
+    func attainableIsWellBelowTheAsymptote() {
+        let summer = plan(on: day(2026, 6, 21))
+        let ceiling = UVEngine.synthesisCeiling(profile: .default)
+
+        #expect(summer.attainableIU > 0)
+        // Le plafond de photo-équilibre est une asymptote : la journée réelle
+        // en atteint moins de la moitié, et c'est pour cela qu'il ne pouvait
+        // pas servir d'échelle.
+        #expect(summer.attainableIU < ceiling / 2)
+    }
+
+    @Test("Le maximum du jour suit la tenue")
+    func attainableFollowsClothing() {
+        var bare = UserProfile.default
+        bare.exposure.preset = .swimwear
+        var covered = UserProfile.default
+        covered.exposure.preset = .longSleevesTrousers
+
+        let barePlan = plan(on: day(2026, 6, 21), profile: bare)
+        let coveredPlan = plan(on: day(2026, 6, 21), profile: covered)
+        #expect(barePlan.attainableIU > coveredPlan.attainableIU * 4)
+    }
+
+    @Test("Un hiver vitaminique ne permet presque rien, mais pas rien du tout")
+    func attainableInWinterIsSmall() {
+        let winter = plan(on: day(2026, 12, 21))
+        let summer = plan(on: day(2026, 6, 21))
+
+        // Le Soleil se couche avant toute rougeur : le maximum est alors la
+        // journée entière, qui reste très faible.
+        #expect(winter.attainableIU > 0)
+        #expect(winter.attainableIU < summer.attainableIU / 3)
+    }
+
+    @Test("Sous la nuit polaire, la journée ne permet rien")
+    func polarNightAllowsNothing() {
+        let polar = plan(on: day(2026, 12, 21), latitude: 69.65, longitude: 18.96)
+        #expect(polar.attainableIU == 0)
+    }
+
     // MARK: - Sortir maintenant, ou plus tard
 
     @Test("Au petit matin, sortir maintenant est possible mais attendre vaut mieux")

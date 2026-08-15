@@ -118,13 +118,18 @@ struct TodayView: View {
                     + "prendre le relais.")
         }
 
-        if let plan = model.plan, plan.goalExceedsCeiling, !plan.isVitaminDWinter {
+        // La comparaison porte sur ce que la journée permet, et non sur le
+        // plafond de photo-équilibre : celui-ci est une asymptote, et un
+        // objectif « sous le plafond » peut rester parfaitement hors de portée.
+        if let plan = model.plan, !plan.isVitaminDWinter,
+           plan.attainableIU > 0, model.profile.dailyGoalIU > plan.attainableIU {
             NoticeBanner(
                 kind: .info,
-                title: "Objectif hors de portée dans cette tenue",
-                message: "Avec \(Int(model.profile.exposure.exposedBodyPercentage)) % de peau découverte, "
-                    + "la synthèse plafonne à environ \(Format.iu(UVEngine.synthesisCeiling(profile: model.profile))) "
-                    + "par sortie. Découvrez davantage de peau, ou revoyez l'objectif à la baisse.")
+                title: "Objectif hors de portée aujourd'hui",
+                message: "Avec \(Int(model.profile.exposure.exposedBodyPercentage)) % de peau "
+                    + "découverte, la journée permet au mieux \(Format.iu(plan.attainableIU)) — "
+                    + "au-delà, la peau rougirait avant que la synthèse ne suive. Découvrez "
+                    + "davantage de peau, ou acceptez de compléter par l'alimentation.")
         }
 
         // Sans cette explication, un rendement à 60 % sur une peau qui n'a rien
@@ -232,7 +237,7 @@ struct TodayView: View {
             // font une rougeur.
             DualProgressBar(
                 vitaminDIU: model.todayTotalIU,
-                ceilingIU: UVEngine.synthesisCeiling(profile: model.profile),
+                attainableIU: model.plan?.attainableIU ?? model.profile.dailyGoalIU,
                 goalIU: model.profile.dailyGoalIU,
                 erythemaIU: model.vitaminDAtErythema,
                 medFraction: model.todayTotalMEDFraction,

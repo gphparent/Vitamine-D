@@ -82,14 +82,25 @@ struct ProfileView: View {
                     LabeledContent("Peau exposée",
                                    value: String(format: "%.0f %%",
                                                  model.profile.exposure.exposedBodyPercentage))
-                    LabeledContent("Plafond par sortie",
+                    if let plan = model.plan {
+                        LabeledContent("Maximum aujourd'hui",
+                                       value: Format.iu(plan.attainableIU))
+                    }
+                    LabeledContent("Plafond théorique",
                                    value: Format.iu(UVEngine.synthesisCeiling(profile: model.profile)))
                 } header: {
                     Text("Exposition")
                 } footer: {
-                    Text("Le plafond correspond au point où la prévitamine D3 se dégrade aussi "
-                         + "vite qu'elle se forme. C'est la raison pour laquelle on ne peut pas "
-                         + "s'intoxiquer à la vitamine D par le seul soleil.")
+                    Text("""
+                    Le maximum du jour est ce que vous obtiendriez en restant dehors au \
+                    meilleur moment jusqu'à la rougeur. C'est le chiffre utile.
+
+                    Le plafond théorique est le point où la prévitamine D3 se dégraderait \
+                    aussi vite qu'elle se forme — la raison pour laquelle on ne peut pas \
+                    s'intoxiquer à la vitamine D par le seul soleil. C'est une asymptote : \
+                    la courbe s'en approche sans jamais l'atteindre, et la peau rougit bien \
+                    avant. Il ne se lit pas comme une quantité obtenable.
+                    """)
                 }
 
                 Section {

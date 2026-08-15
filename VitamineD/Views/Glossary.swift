@@ -112,6 +112,14 @@ enum GlossaryEntry: String, Identifiable, CaseIterable, Sendable {
 
             Le plafond dépend de la surface de peau découverte. Plus vous \
             exposez, plus il est haut.
+
+            Un mot sur sa taille, parce qu'elle surprend. C'est une asymptote : \
+            la courbe s'en approche sans jamais l'atteindre, et il faudrait une \
+            dose infinie pour y arriver. Un plafond calculé à dix-sept mille \
+            unités ne veut donc pas dire qu'on peut en produire dix-sept mille \
+            dans une journée — la peau rougirait bien avant. La barre de l'écran \
+            principal est graduée sur ce que la journée permet vraiment, ce qui \
+            est un tout autre chiffre.
             """
         case .marginalYield:
             return """

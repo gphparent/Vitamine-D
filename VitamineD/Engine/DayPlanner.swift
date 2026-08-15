@@ -113,6 +113,13 @@ struct DayPlan: Equatable, Sendable {
     /// ne bouge pas d'une prévision à l'autre, ce qui est la moindre des choses
     /// pour un décompte.
     let optimalBand: DateInterval?
+    /// Vitamine D maximale que la journée permet, la peau étant ce qu'elle est.
+    ///
+    /// Sert d'échelle à la barre de l'écran principal : contrairement au
+    /// plafond de photo-équilibre, qui est une asymptote inatteignable, cette
+    /// valeur-ci est celle qu'on obtiendrait en restant dehors jusqu'à la
+    /// rougeur. Elle est donc atteignable par construction.
+    let attainableIU: Double
 
     var bestRecommendation: SessionRecommendation? { recommendations.first }
 
@@ -221,7 +228,8 @@ enum DayPlanner {
             peakUVIndex: peakUV,
             isVitaminDWinter: peakElevation < UVEngine.vitaminDWinterElevation,
             goalExceedsCeiling: profile.dailyGoalIU > ceiling,
-            optimalBand: yieldBands(from: samples).first { $0.band == .optimal }?.interval
+            optimalBand: yieldBands(from: samples).first { $0.band == .optimal }?.interval,
+            attainableIU: attainableIU(samples: samples, profile: profile, carried: carried)
         )
     }
 
@@ -526,6 +534,52 @@ enum DayPlanner {
             rawIU += rawIncrement
         }
         return nil
+    }
+
+    /// Le maximum que la journée peut réellement donner.
+    ///
+    /// Ce n'est pas le plafond de photo-équilibre. Celui-ci est une asymptote —
+    /// la courbe de saturation s'en approche sans jamais l'atteindre, et il
+    /// faudrait une dose infinie pour y arriver. L'afficher comme maximum d'une
+    /// barre était une erreur : on y voyait un objectif hors de portée, ce
+    /// qu'il est par construction.
+    ///
+    /// Le vrai maximum d'une journée est celui que la peau autorise : la
+    /// vitamine D produite au moment où une exposition continue atteindrait la
+    /// dose érythémale. Quand le Soleil se couche avant que la rougeur soit
+    /// possible — hiver, ciel couvert, latitude —, c'est tout ce que la journée
+    /// contient.
+    /// - Note: le maximum se cherche sur l'heure de départ, et ne se lit pas au
+    ///   premier rayon du matin. Commencer au lever est au contraire la pire
+    ///   stratégie : le Soleil rasant consomme la dose érythémale au même
+    ///   rythme qu'à midi tout en produisant huit fois moins de vitamine D, si
+    ///   bien qu'on atteint la rougeur avec une récolte dérisoire. À Montréal
+    ///   le 21 juin, partir au lever plafonne à mille unités, partir vers midi
+    ///   en donne deux mille cinq cents.
+    static func attainableIU(samples: [TimelineSample],
+                             profile: UserProfile,
+                             carried: Double = 0) -> Double {
+        guard samples.contains(where: { $0.isSynthesisPossible }) else { return 0 }
+
+        let stride = max(1, Int((15 * 60) / sampleInterval))
+        var best: Double?
+        for index in Swift.stride(from: 0, to: samples.count, by: stride)
+        where samples[index].isSynthesisPossible {
+            guard let limited = vitaminDAtErythema(
+                from: samples[index].date, samples: samples,
+                profile: profile, carried: carried) else { continue }
+            best = max(best ?? 0, limited)
+        }
+        if let best { return best }
+
+        // Aucune rougeur possible aujourd'hui : le maximum est alors la journée
+        // entière, du premier au dernier rayon utile.
+        var raw = 0.0
+        for index in 0..<max(0, samples.count - 1) {
+            let minutes = samples[index + 1].date.timeIntervalSince(samples[index].date) / 60
+            raw += samples[index].rates.vitaminDIUPerMinute * minutes
+        }
+        return UVEngine.saturated(rawIU: raw, carried: carried, profile: profile)
     }
 
     /// Simule une sortie démarrant à un instant donné et renvoie ce qu'elle

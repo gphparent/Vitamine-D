@@ -20,6 +20,7 @@ struct HistoryView: View {
                 VStack(spacing: 16) {
                     summary
                     chart
+                    reserveCard
                     winterCard
                     list
                 }
@@ -91,6 +92,142 @@ struct HistoryView: View {
     /// choses qui décident vraiment — le nombre de jours utiles qui restent, et
     /// la vitesse à laquelle ce qu'on a déjà fabriqué disparaît.
     @ViewBuilder
+    // MARK: - Réserves
+
+    /// Ce qui reste en circulation de tout ce qui a été synthétisé.
+    ///
+    /// Un total hebdomadaire ne dit rien d'utile, parce qu'une réserve ne
+    /// s'additionne pas : elle fuit. Le 25-hydroxyvitamine D circulant perd la
+    /// moitié de sa valeur en une quinzaine de jours, ce qui change tout — deux
+    /// sorties identiques à trois semaines d'écart ne valent pas le double
+    /// d'une seule, et c'est la régularité, non l'intensité, qui tient un
+    /// plateau.
+    ///
+    /// Le chiffre est présenté en **apport quotidien équivalent** plutôt qu'en
+    /// réservoir : c'est la seule forme qui se compare à quelque chose de
+    /// connu, à savoir l'apport de référence de Santé Canada.
+    private var reserveCard: some View {
+        let now = model.now
+        let reserve = WinterPlanner.reserve(on: now, history: model.history)
+        let daily = WinterPlanner.equivalentDailyIU(reserve: reserve)
+        let recent = WinterPlanner.recentDailyIU(on: now, history: model.history)
+
+        return Card(title: "Vos réserves", systemImage: "drop.halffull") {
+            HStack(spacing: 12) {
+                MetricTile(label: "Apport équivalent",
+                           value: reserve > 1 ? "\(Int(daily.rounded())) UI/j" : "—",
+                           detail: "en circulation",
+                           tint: Theme.vitaminD)
+                MetricTile(label: "Référence",
+                           value: "\(Int(VitaminDTarget.referenceIntakeUnder70)) UI/j",
+                           detail: "Santé Canada")
+                MetricTile(label: "Demi-vie",
+                           value: "\(Int(WinterPlanner.halfLifeDays)) jours",
+                           detail: "du 25(OH)D")
+            }
+
+            if reserve > 1 {
+                reserveChart(reserve: reserve, dailyIU: recent)
+                Text(reserveVerdict(daily: daily))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("Aucune sortie enregistrée pour l'instant. La réserve se "
+                     + "calcule à partir des sorties terminées dans l'application.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
+            GoldRule()
+
+            Text("""
+            Ce n'est pas une concentration sanguine, et l'application n'a aucun \
+            moyen de la connaître : c'est un modèle qui applique la décroissance \
+            publiée à ce que vous avez synthétisé. Il sert à se comparer à \
+            soi-même d'une semaine à l'autre, pas à remplacer une prise de sang.
+            """)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// Quatre-vingt-dix jours derrière, trente devant.
+    private func reserveChart(reserve: Double, dailyIU: Double) -> some View {
+        let now = model.now
+        let past = WinterPlanner.series(from: now.addingTimeInterval(-90 * 86_400),
+                                        to: now,
+                                        history: model.history,
+                                        step: 2 * 86_400)
+        let ahead = WinterPlanner.projection(from: now,
+                                             reserve: reserve,
+                                             through: now.addingTimeInterval(30 * 86_400),
+                                             step: 2 * 86_400)
+
+        return Chart {
+            ForEach(past, id: \.date) { point in
+                AreaMark(x: .value("Date", point.date),
+                         y: .value("Apport équivalent",
+                                   WinterPlanner.equivalentDailyIU(reserve: point.reserve)))
+                    .foregroundStyle(
+                        .linearGradient(
+                            colors: [Theme.vitaminD.opacity(0.45), Theme.vitaminD.opacity(0.05)],
+                            startPoint: .top, endPoint: .bottom))
+            }
+
+            // La projection suppose l'arrêt de toute exposition : c'est la
+            // pente qu'on subit, pas celle qu'on suivra.
+            ForEach(ahead, id: \.date) { point in
+                LineMark(x: .value("Date", point.date),
+                         y: .value("Apport équivalent",
+                                   WinterPlanner.equivalentDailyIU(reserve: point.reserve)),
+                         series: .value("Série", "projection"))
+                    .foregroundStyle(Theme.vitaminD.opacity(0.6))
+                    .lineStyle(.init(lineWidth: 1.5, dash: [4, 3]))
+            }
+
+            RuleMark(y: .value("Référence", VitaminDTarget.referenceIntakeUnder70))
+                .foregroundStyle(.primary.opacity(0.45))
+                .lineStyle(.init(lineWidth: 1, dash: [3, 3]))
+                .annotation(position: .top, alignment: .leading, spacing: 1) {
+                    Text("apport de référence")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
+            RuleMark(x: .value("Aujourd'hui", now))
+                .foregroundStyle(.primary.opacity(0.5))
+                .lineStyle(.init(lineWidth: 1))
+        }
+        .chartXAxis {
+            AxisMarks(values: .stride(by: .month)) { value in
+                AxisGridLine()
+                AxisValueLabel {
+                    if let date = value.as(Date.self) {
+                        Text(Format.monthAbbreviation(date, in: model.calendar.timeZone))
+                    }
+                }
+            }
+        }
+        .frame(height: 150)
+    }
+
+    private func reserveVerdict(daily: Double) -> String {
+        let reference = VitaminDTarget.referenceIntakeUnder70
+        let value = Int(daily.rounded())
+        if daily >= reference {
+            return "Vos sorties soutiennent l'équivalent de \(value) UI par jour, "
+                + "soit au moins l'apport de référence. Le trait pointillé montre "
+                + "ce qu'il en resterait si vous cessiez de sortir dès aujourd'hui."
+        }
+        let share = Format.percent(daily / reference)
+        return "Vos sorties soutiennent l'équivalent de \(value) UI par jour, "
+            + "soit \(share) de l'apport de référence. Le reste doit venir de "
+            + "l'assiette ou d'un supplément — et le trait pointillé montre la "
+            + "pente si vous cessiez de sortir dès aujourd'hui."
+    }
+
     private var winterCard: some View {
         if let plan = model.winterPlan {
             Card(title: plan.hasStarted ? "Hiver vitaminique" : "Avant l'hiver",
@@ -312,7 +449,7 @@ struct HistoryView: View {
 
             Text("""
             Le 25-hydroxyvitamine D circulant perd la moitié de sa valeur en une \
-            vingtaine de jours. Emmagasiner du soleil fonctionne donc à l'échelle \
+            quinzaine de jours. Emmagasiner du soleil fonctionne donc à l'échelle \
             de quelques semaines, pas d'une saison : aucune stratégie d'exposition \
             ne couvre un hiver québécois entier. Ce chiffre est un indice relatif, \
             utile pour se comparer à soi-même d'une semaine à l'autre — seule une \

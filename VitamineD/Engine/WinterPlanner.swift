@@ -15,10 +15,18 @@ enum WinterPlanner {
 
     /// Demi-vie du 25(OH)D circulant, en jours.
     ///
-    /// Les études donnent de 15 à 25 jours selon la population et le statut de
-    /// départ. Vingt est une valeur centrale défendable ; les conclusions
-    /// qualitatives ne changent pas aux bornes de cette fourchette.
-    static let halfLifeDays = 20.0
+    /// La valeur la plus souvent rapportée est **quinze jours**, avec une
+    /// fourchette de deux à trois semaines selon la population, le statut de
+    /// départ et le génotype de la protéine de transport. L'application
+    /// retenait vingt jours ; quinze est la valeur centrale de la littérature,
+    /// et se tromper du côté pessimiste vaut mieux pour un conseil
+    /// d'exposition — une réserve surestimée pousse à sortir moins.
+    ///
+    /// À ne pas confondre avec la persistance de la vitamine D dans le tissu
+    /// adipeux, qui se compte en mois. Ce réservoir-là existe, mais il n'est
+    /// pas directement disponible : ce qui compte pour l'organisme est le
+    /// 25(OH)D circulant, et c'est lui que ce modèle suit.
+    static let halfLifeDays = 15.0
 
     /// Constante de temps de la décroissance exponentielle.
     static var timeConstantDays: Double { halfLifeDays / log(2) }
@@ -41,6 +49,28 @@ enum WinterPlanner {
             guard elapsed >= 0 else { return total }
             return total + record.vitaminDIU * remainingFraction(afterDays: elapsed)
         }
+    }
+
+    /// La réserve telle qu'elle a évolué, jour après jour, sur une période
+    /// passée.
+    ///
+    /// Chaque point applique la décroissance à tout ce qui a été synthétisé
+    /// avant lui. La courbe qui en sort dit une chose qu'aucun total
+    /// hebdomadaire ne dit : une réserve ne s'additionne pas, elle fuit. Deux
+    /// sorties identiques à trois semaines d'intervalle ne valent pas le double
+    /// d'une seule.
+    static func series(from start: Date,
+                       to end: Date,
+                       history: [SessionRecord],
+                       step: TimeInterval = 86_400) -> [(date: Date, reserve: Double)] {
+        guard end > start, step > 0 else { return [] }
+        var result: [(date: Date, reserve: Double)] = []
+        var cursor = start
+        while cursor <= end {
+            result.append((cursor, reserve(on: cursor, history: history)))
+            cursor = cursor.addingTimeInterval(step)
+        }
+        return result
     }
 
     /// Apport quotidien constant qui, à l'équilibre, soutiendrait cette réserve.

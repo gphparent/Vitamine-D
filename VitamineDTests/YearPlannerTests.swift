@@ -192,9 +192,13 @@ struct WinterPlannerTests {
     @Test("La réserve additionne les sorties passées, chacune amortie")
     func reserveSumsDecayedSessions() {
         let today = day(2026, 9, 1)
+        // Exactement une demi-vie plus tôt, quelle que soit la valeur retenue :
+        // coder la durée en dur ferait échouer le test le jour où la constante
+        // suit la littérature, ce qui est précisément quand il doit passer.
+        let oneHalfLifeAgo = today.addingTimeInterval(-WinterPlanner.halfLifeDays * 86_400)
         let history = [
             record(on: today, iu: 1_000),
-            record(on: day(2026, 8, 12), iu: 1_000),   // vingt jours plus tôt
+            record(on: oneHalfLifeAgo, iu: 1_000),
         ]
         let reserve = WinterPlanner.reserve(on: today, history: history)
 

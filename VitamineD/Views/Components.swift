@@ -189,32 +189,35 @@ struct UVGauge: View {
 /// pour combien de peau ».
 /// Les deux comptes de la journée : ce qui est produit, ce qui est dépensé.
 ///
-/// La barre de vitamine D est graduée jusqu'au **plafond de photo-équilibre**,
-/// et non jusqu'à l'objectif. C'est la seule échelle qui ait un sens physique :
-/// au-delà de ce point, la prévitamine D3 se dégrade en lumistérol et en
-/// tachystérol aussi vite qu'elle se forme, et rester dehors n'ajoute plus
-/// rien. Graduer sur l'objectif laissait croire qu'une barre pleine est un
-/// maximum, alors que c'est un choix de l'utilisateur — et masquait le fait
-/// que la peau, elle, s'arrête ailleurs.
+/// La barre de vitamine D est graduée sur **ce que la journée permet** : la
+/// quantité qu'on obtiendrait en restant dehors jusqu'à la rougeur, ou la
+/// journée entière quand la rougeur est hors de portée.
 ///
-/// Deux repères s'y posent : l'objectif personnel en pointillé, et l'endroit
-/// où la rougeur surviendrait, en rouge. Ce dernier n'apparaît que s'il tombe
-/// avant le plafond ; sinon il n'y a rien à craindre, la synthèse s'arrête la
-/// première.
+/// Elle a d'abord été graduée sur le plafond de photo-équilibre, et c'était une
+/// erreur. Ce plafond est une asymptote : la courbe de saturation s'en approche
+/// sans jamais y arriver, et il faudrait une dose infinie pour l'atteindre.
+/// Affiché comme maximum, il donnait un chiffre à cinq chiffres que personne ne
+/// peut atteindre — une barre qui reste vide quoi qu'on fasse n'informe pas,
+/// elle décourage.
+///
+/// L'échelle ne descend jamais sous l'objectif : quand la journée ne permet pas
+/// de l'atteindre, c'est précisément ce qu'il faut voir, et le repère rouge
+/// tombe alors avant le pointillé.
 struct DualProgressBar: View {
     /// Vitamine D produite aujourd'hui, en UI.
     let vitaminDIU: Double
-    /// Plafond de photo-équilibre pour ce profil et cette tenue, en UI.
-    let ceilingIU: Double
+    /// Ce que la journée permet au maximum, en UI.
+    let attainableIU: Double
     /// Objectif quotidien choisi par l'utilisateur, en UI.
     let goalIU: Double
-    /// Vitamine D cumulée à laquelle la rougeur surviendrait. `nil` quand elle
-    /// ne survient pas aujourd'hui.
+    /// Vitamine D cumulée à laquelle la rougeur surviendrait si l'on restait
+    /// dehors à partir de maintenant. `nil` quand elle ne survient pas.
     var erythemaIU: Double?
     let medFraction: Double
     let burnLevel: SessionProgress.BurnLevel
 
-    private var ceiling: Double { max(1, ceilingIU) }
+    /// L'échelle : ce que la journée permet, jamais moins que l'objectif.
+    private var ceiling: Double { max(1, max(attainableIU, goalIU)) }
 
     /// Le repère de rougeur ne se dessine que s'il tombe dans la barre.
     private var visibleErythemaIU: Double? {
@@ -240,7 +243,7 @@ struct DualProgressBar: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 3) {
                 Text("Vitamine D").font(.caption).foregroundStyle(.secondary)
-                GlossaryButton(entry: .synthesisCeiling)
+                GlossaryButton(entry: .internationalUnits)
                 Spacer()
                 Text("\(Int(vitaminDIU.rounded())) / \(Format.iu(ceiling))")
                     .font(.caption.monospacedDigit())
@@ -292,17 +295,24 @@ struct DualProgressBar: View {
     }
 
     private var legend: some View {
-        HStack(spacing: 12) {
-            legendItem(colour: Color.primary.opacity(0.65), isDashed: true,
-                       text: goalIU > ceiling
-                           ? "objectif hors d'atteinte dans cette tenue"
-                           : "objectif \(Format.iu(goalIU))")
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 12) {
+                legendItem(colour: Color.primary.opacity(0.65), isDashed: true,
+                           text: "objectif \(Format.iu(goalIU))")
 
-            if let erythema = visibleErythemaIU {
-                legendItem(colour: .red, isDashed: false,
-                           text: "rougeur vers \(Format.iu(erythema))")
+                if let erythema = visibleErythemaIU {
+                    legendItem(colour: .red, isDashed: false,
+                               text: "rougeur vers \(Format.iu(erythema))")
+                }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
+
+            // Quand le maximum du jour n'atteint pas l'objectif, l'échelle est
+            // l'objectif : le dire évite de laisser croire qu'une barre à
+            // moitié pleine est une journée à moitié réussie.
+            if attainableIU < goalIU {
+                Text("Aujourd'hui, la peau ne permet que \(Format.iu(attainableIU)).")
+            }
         }
         .font(.caption2)
         .foregroundStyle(.secondary)

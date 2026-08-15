@@ -105,6 +105,51 @@ struct MethodologyView: View {
                     linéairement. C'est le mécanisme qui rend impossible une intoxication à \
                     la vitamine D par le seul soleil — et qui rend inutile toute exposition \
                     prolongée.
+
+                    Ce plafond est une **asymptote** : la courbe s'en approche sans jamais \
+                    l'atteindre, et il faudrait une dose infinie pour y arriver. Il ne doit \
+                    donc jamais être lu comme une quantité obtenable. Ce que la journée \
+                    permet réellement est beaucoup plus bas — à Montréal, le 21 juin, en \
+                    t-shirt et short, environ deux mille cinq cents unités avant que la \
+                    peau ne rougisse, pour un plafond calculé à six mille.
+                    """)
+
+                section(
+                    title: "Combien d'unités pour une dose érythémale",
+                    body: """
+                    C'est le chiffre le plus incertain de l'application, et il faut le dire. \
+                    La référence usuelle est la règle de Holick : une dose érythémale \
+                    minimale sur un corps en maillot de bain équivaudrait à dix mille, voire \
+                    vingt-cinq mille unités avalées. Elle est citée partout.
+
+                    Elle est aussi contestée. Webb et Engelsen ont montré que l'expérience \
+                    d'origine employait une lampe fluorescente dont le spectre diffère \
+                    nettement de celui du Soleil, et que transposer le résultat au \
+                    rayonnement solaire surestime l'équivalence d'environ un tiers. Les \
+                    essais qui mesurent la concentration sanguine après exposition — Bogh et \
+                    coll., puis la méta-analyse de 2018 — donnent des hausses plus modestes \
+                    que la règle ne le laisse attendre.
+
+                    L'application se calibre en dessous de la fourchette de Holick : une \
+                    dose érythémale sur un corps découvert y produit de l'ordre de huit \
+                    mille unités, non vingt-cinq mille. Retenez l'ordre de grandeur, pas le \
+                    chiffre.
+                    """)
+
+                section(
+                    title: "Les réserves",
+                    body: """
+                    Le 25-hydroxyvitamine D circulant a une demi-vie d'environ quinze jours. \
+                    L'application applique cette décroissance à tout ce qu'elle a vu \
+                    synthétiser, ce qui donne une réserve relative, puis la traduit en \
+                    apport quotidien équivalent — la seule forme qui se compare à l'apport \
+                    de référence.
+
+                    Deux limites. Ce n'est pas une concentration sanguine : seul un dosage \
+                    en donne une, et le modèle ignore tout de votre point de départ. Et la \
+                    vitamine D stockée dans le tissu adipeux, qui persiste des mois, n'est \
+                    pas comptée — elle n'est pas directement disponible, et ce qui compte \
+                    pour l'organisme est la fraction circulante.
                     """)
 
                 section(

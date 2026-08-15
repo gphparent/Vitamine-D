@@ -127,6 +127,21 @@ struct EvidenceView: View {
             """)
             .font(.footnote)
             .foregroundStyle(.secondary)
+
+            GoldRule()
+
+            Text("""
+            Le chiffre le plus incertain de l'application est la conversion \
+            entre rayonnement reçu et unités produites. La référence usuelle — \
+            une dose érythémale sur un corps découvert vaudrait dix mille à \
+            vingt-cinq mille unités avalées — vient de Holick, et l'expérience \
+            d'origine employait une lampe fluorescente dont le spectre diffère \
+            du Soleil ; Webb et Engelsen ont montré que la transposition \
+            surestime d'environ un tiers. L'application se calibre en dessous \
+            de cette fourchette. Retenez l'ordre de grandeur, pas le chiffre.
+            """)
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
     }
 
