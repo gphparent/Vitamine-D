@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Toute la question de l'hiver vitaminique se joue sur un seul chiffre par
 /// jour : la hauteur du Soleil à son point le plus haut. Si ce maximum reste
-/// sous 25°, aucune heure de cette journée-là ne produira de vitamine D, et il
+/// sous le seuil d'hiver vitaminique, aucune heure de cette journée-là ne produira de vitamine D, et il
 /// est inutile d'en échantillonner davantage.
 struct YearDay: Identifiable, Equatable, Sendable {
     /// Midi solaire de ce jour.

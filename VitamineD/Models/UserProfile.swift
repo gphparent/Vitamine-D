@@ -108,14 +108,35 @@ struct UserProfile: Codable, Equatable, Sendable {
 
     /// Rendement lié à l'âge.
     ///
-    /// La concentration cutanée en 7-déhydrocholestérol décroît régulièrement
-    /// après la vingtaine ; à 70 ans elle vaut environ la moitié de celle d'un
-    /// jeune adulte (Holick, 1989). Le facteur est borné à 0,4 pour éviter une
-    /// extrapolation absurde aux grands âges.
+    /// ## Deux mesures qui se contredisent
+    ///
+    /// L'application appliquait auparavant une pénalité de 1 % par an dès
+    /// vingt ans, jusqu'à un plancher de 0,4 : un homme de soixante-dix ans
+    /// voyait sa synthèse réduite de moitié. Cela reposait sur MacLaughlin et
+    /// Holick (*J Clin Invest*, 1985), qui trouvaient sur de la peau prélevée
+    /// chirurgicalement une baisse de plus d'un facteur deux entre des sujets
+    /// de huit à dix-huit ans et d'autres de soixante-dix-sept à
+    /// quatre-vingt-deux.
+    ///
+    /// Borecka et coll. (*J Invest Dermatol*, 2024) ont mesuré la chose
+    /// autrement : sur des adultes vivants et valides, la concentration
+    /// cutanée en 7-déhydrocholestérol ne diffère pas entre jeunes et âgés
+    /// (0,22 ± 0,07 contre 0,25 ± 0,08 µg/mg), et la montée de la vitamine D3
+    /// sérique après exposition à un simulateur solaire ne diffère pas
+    /// davantage. Leur conclusion : le précurseur **n'est pas le facteur
+    /// limitant** chez la personne âgée en bonne santé.
+    ///
+    /// Les deux ne s'excluent pas tout à fait — l'une mesure de la peau ex vivo
+    /// jusqu'à quatre-vingt-deux ans, l'autre des adultes valides plus jeunes
+    /// que cela. Le compromis retenu suit la mesure in vivo, qui décrit mieux
+    /// les gens qui se servent de cette application : aucune pénalité avant
+    /// soixante-dix ans, puis une décroissance lente jusqu'à un plancher de
+    /// 0,7, pour ne pas écarter d'un trait ce qu'observait le travail de 1985
+    /// aux très grands âges.
     var ageFactor: Double {
-        let reference = 20.0
-        guard Double(age) > reference else { return 1.0 }
-        return max(0.4, 1.0 - 0.01 * (Double(age) - reference))
+        let onset = 70.0
+        guard Double(age) > onset else { return 1.0 }
+        return max(0.7, 1.0 - 0.01 * (Double(age) - onset))
     }
 
     /// Dose érythémale minimale effective, acclimatation comprise, en J/m².

@@ -33,18 +33,20 @@ struct ClothingView: View {
                     Text("Étoffe")
                 } footer: {
                     Text("""
-                    La peau couverte ne reçoit pas rien. Un jean ou une laine serrée \
-                    arrêtent presque tout, mais un coton d'été en laisse passer un \
-                    vingtième, un lin clair un sixième, et un tissu mouillé ou \
-                    distendu près d'un tiers — un t-shirt blanc trempé ne protège \
+                    La peau couverte ne reçoit pas rien, et les vêtements protègent \
+                    bien moins qu'on ne le croit. Un jean ou une laine serrée arrêtent \
+                    presque tout. Mais le t-shirt de coton blanc que tout le monde \
+                    porte l'été est mesuré entre UPF 3 et UPF 7 : il laisse passer \
+                    entre un septième et un tiers du rayonnement, très loin de l'UPF 30 \
+                    que recommande l'OMS. Mouillé ou distendu, il ne protège \
                     pratiquement plus.
 
-                    Comme la peau couverte représente presque tout le corps, ce \
-                    filet compte : sous des manches longues et un coton d'été, il \
-                    apporte près de la moitié de ce que donnent le visage, le cou et \
-                    les mains réunis, et un lin clair les dépasse. C'est pourquoi \
-                    changer d'étoffe déplace la durée conseillée sans qu'un seul \
-                    centimètre de peau n'ait été découvert.
+                    Comme la peau couverte représente presque tout le corps, ce filet \
+                    compte : sous des manches longues, un coton d'été apporte les deux \
+                    tiers de ce que donnent le visage, le cou et les mains réunis, et \
+                    un t-shirt blanc en apporte près du double. C'est pourquoi changer \
+                    d'étoffe déplace la durée conseillée sans qu'un seul centimètre de \
+                    peau n'ait été découvert.
 
                     L'étoffe n'agit que sur la vitamine D. L'heure du coup de soleil \
                     reste calculée sur la peau nue, qui rougira la première quoi \

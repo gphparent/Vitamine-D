@@ -129,7 +129,7 @@ struct YearView: View {
                     .foregroundStyle(.blue.opacity(0.7))
                     .lineStyle(.init(lineWidth: 1, dash: [4, 3]))
                     .annotation(position: .bottom, alignment: .leading, spacing: 1) {
-                        Text("25° · plus rien en dessous")
+                        Text("\(Format.degrees(UVEngine.vitaminDWinterElevation)) · plus rien en dessous")
                             .font(.caption2)
                             .foregroundStyle(.blue)
                     }
@@ -174,7 +174,8 @@ struct YearView: View {
             .frame(height: 210)
 
             Text("Hauteur du Soleil à son midi, jour après jour. La zone bleue est "
-                 + "l'hiver vitaminique : le Soleil y reste sous 25°, l'ozone absorbe "
+                 + "l'hiver vitaminique : le Soleil y reste sous "
+                 + "\(Format.degrees(UVEngine.vitaminDWinterElevation)), l'ozone absorbe "
                  + "les UVB, et aucune durée d'exposition ne produit quoi que ce soit.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)

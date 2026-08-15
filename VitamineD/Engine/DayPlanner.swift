@@ -379,7 +379,7 @@ enum DayPlanner {
     /// hauteur, il faut dépenser huit fois plus de capital cutané pour la même
     /// vitamine D qu'à 65°.
     enum YieldBand: Int, Comparable, Sendable {
-        case negligible   // sous 25° : ce qu'on récolte ne vaut pas la dépense
+        case negligible   // sous le seuil d'hiver : la récolte ne vaut pas la dépense
         case partial      // 25 à 45° : utile, mais le rapport reste médiocre
         case optimal      // au-delà de 45° : règle de l'ombre satisfaite
 
@@ -757,7 +757,7 @@ enum DayPlanner {
                               carried: Double = 0,
                               carriedMED: Double = 0) -> OutingOptions {
         // Un jour d'hiver vitaminique ne propose rien, et c'est délibéré. Le
-        // modèle continu, lui, rend encore un ou deux UI par minute sous 25° :
+        // modèle continu, lui, rend encore un ou deux UI par minute sous ce seuil :
         // la table de rendement y est une extrapolation, et proposer « sortez
         // quatre-vingt-dix minutes pour cent soixante unités » contredirait le
         // bandeau qui vient d'annoncer, à raison, que la journée ne produit

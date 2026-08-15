@@ -167,12 +167,16 @@ enum GlossaryEntry: String, Identifiable, CaseIterable, Sendable {
             """
         case .vitaminDWinter:
             return """
-            Au-dessus d'environ 35° de latitude, il existe une saison où le \
-            Soleil ne monte jamais au-delà de 25° au-dessus de l'horizon. Le \
-            trajet du rayonnement dans l'atmosphère est alors si long que \
-            l'ozone absorbe la quasi-totalité des UVB.
+            Au-dessus de 34° de latitude, il existe une saison où le Soleil ne \
+            monte jamais au-delà de 30° au-dessus de l'horizon. Le trajet du \
+            rayonnement dans l'atmosphère est alors si long que l'ozone absorbe \
+            la quasi-totalité des UVB.
 
-            À Montréal, cela va de novembre à février. Le Soleil brille, \
+            Ce seuil n'est pas une vue de l'esprit : Webb, Kline et Holick ont \
+            exposé du précurseur de la vitamine D au soleil d'hiver de Boston et \
+            d'Edmonton en 1988, et n'en ont récolté aucune de novembre à février.
+
+            À Montréal, cela va du 1er novembre au 9 février. Le Soleil brille, \
             l'indice UV n'est pas nul, on peut même attraper un coup de soleil \
             sur les pistes de ski — mais aucune durée d'exposition ne produira \
             de vitamine D. Seules l'alimentation et la supplémentation prennent \

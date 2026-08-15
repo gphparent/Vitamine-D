@@ -59,8 +59,16 @@ struct YearPlannerTests {
 
     // MARK: - L'hiver
 
-    @Test("Montréal connaît un hiver vitaminique du 19 novembre au 22 janvier")
+    @Test("Montréal connaît un hiver vitaminique du 1er novembre au 9 février")
     func montrealHasAWinter() throws {
+        // Ces dates ont bougé en relevant le seuil de 25° à 30°, pour suivre
+        // Webb, Kline et Holick 1988. Elles se vérifient contre la mesure : ces
+        // auteurs n'ont détecté aucune prévitamine D3 de novembre à février à
+        // Boston, 42,2° N. Montréal est trois degrés plus au nord, et son hiver
+        // doit donc déborder un peu des deux côtés — c'est exactement ce que
+        // donne le calcul. L'ancien seuil, lui, faisait finir l'hiver
+        // montréalais le 22 janvier, trois semaines avant Boston, ce qui était
+        // géographiquement impossible.
         let year = outlook(on: day(2026, 8, 13))
         let winter = try #require(year.winter)
         // La borne de fin est le minuit suivant le dernier jour creux.
@@ -68,14 +76,14 @@ struct YearPlannerTests {
 
         #expect(year.hasWinter)
         #expect(calendar.component(.month, from: winter.start) == 11)
-        #expect(abs(calendar.component(.day, from: winter.start) - 19) <= 1)
-        #expect(calendar.component(.month, from: lastDay) == 1)
-        #expect(abs(calendar.component(.day, from: lastDay) - 22) <= 1)
+        #expect(calendar.component(.day, from: winter.start) <= 2)
+        #expect(calendar.component(.month, from: lastDay) == 2)
+        #expect(abs(calendar.component(.day, from: lastDay) - 9) <= 1)
 
-        // Deux mois pleins, et non les quatre que la sagesse populaire annonce :
-        // le seuil de 25° est franchi bien avant l'équinoxe de printemps.
-        #expect(winter.duration > 55 * 86_400)
-        #expect(winter.duration < 75 * 86_400)
+        // Trois mois et un tiers, et non les quatre que la sagesse populaire
+        // annonce : le seuil est franchi bien avant l'équinoxe de printemps.
+        #expect(winter.duration > 90 * 86_400)
+        #expect(winter.duration < 115 * 86_400)
         #expect(winter.contains(day(2026, 12, 21)))
         #expect(!winter.contains(day(2026, 9, 21)))
     }

@@ -113,8 +113,9 @@ enum Theme {
     ///
     /// La phase ne dépend jamais de l'heure, toujours de la hauteur : c'est la
     /// même grandeur qui décide du rendement UVB, et les deux dernières bornes
-    /// — 25° et 45° — sont exactement celles des bandes de rendement. Le fond
-    /// dit donc quelque chose de vrai, et non une ambiance.
+    /// — celles de l'hiver vitaminique et de la règle de l'ombre — sont
+    /// exactement celles des bandes de rendement. Le fond dit donc quelque
+    /// chose de vrai, et non une ambiance.
     static func skyStops(solarElevation: Double) -> [Color] {
         switch solarElevation {
         case ..<(-12):
@@ -237,8 +238,9 @@ enum Format {
     ///
     /// La locale est passée explicitement : sans elle, `String(format:)` s'en
     /// tient à POSIX et écrirait « 1.4 fois » au milieu d'une phrase française.
+    /// C'est la même locale que les dates de ce fichier, et pour la même raison.
     static func multiplier(_ value: Double) -> String {
-        String(format: "%.1f fois", locale: .current, value)
+        String(format: "%.1f fois", locale: Locale(identifier: "fr_CA"), value)
     }
 
     static func temperature(_ celsius: Double) -> String {

@@ -426,7 +426,9 @@ struct HistoryView: View {
     private func winterSentence(_ plan: WinterPlanner.Plan) -> String {
         let last = Format.shortDate(plan.winter.end.addingTimeInterval(-1),
                                     in: model.calendar.timeZone)
-        var sentence = "Le Soleil reste sous 25° jusqu'au \(last). Sortir garde tout "
+        var sentence = "Le Soleil reste sous "
+            + "\(Format.degrees(UVEngine.vitaminDWinterElevation)) jusqu'au \(last). "
+            + "Sortir garde tout "
         sentence += "son intérêt pour l'humeur, le sommeil et l'horloge interne — "
         sentence += "mais pas pour la vitamine D, qu'il faut chercher dans l'assiette "
         sentence += "ou dans un supplément."

@@ -163,11 +163,28 @@ enum ClothingPreset: String, CaseIterable, Codable, Identifiable, Sendable {
 
 /// Étoffe portée sur la peau couverte, classée par ce qu'elle laisse passer.
 ///
-/// Un vêtement n'est pas un écran. Les valeurs correspondent aux facteurs de
-/// protection vestimentaire (UPF) mesurés en laboratoire : un jean ou une laine
-/// serrée dépassent UPF 50, un coton d'été ordinaire tourne autour de 20, un
-/// tissu clair à maille lâche descend vers 7, et un voile ou un vêtement mouillé
-/// tombe sous 4 — un t-shirt blanc trempé ne protège pratiquement plus.
+/// Un vêtement n'est pas un écran, et il protège bien moins qu'on ne le croit.
+/// Le repère mesuré le plus parlant : **un t-shirt de coton blanc d'été, celui
+/// que tout le monde porte, se situe entre UPF 3 et UPF 7** — il laisse donc
+/// passer entre un septième et un tiers du rayonnement, très loin de l'UPF 30
+/// que recommande l'OMS. Les tissus serrés et foncés, denim ou laine, dépassent
+/// en revanche largement UPF 50.
+///
+/// Une première version de ce classement supposait un coton d'été à UPF 20.
+/// C'était trop optimiste d'un facteur trois, et les mesures publiées sur des
+/// vêtements réels l'ont corrigé.
+///
+/// ## Deux réserves honnêtes
+///
+/// L'UPF est mesuré au spectrophotomètre sur un échantillon plat, pondéré par
+/// le spectre d'action de l'érythème. Porté, un tissu s'étire et s'écarte de la
+/// peau, ce qui abaisse encore sa protection ; mais le spectre d'action de la
+/// vitamine D est décalé vers les courtes longueurs d'onde, que les textiles
+/// arrêtent mieux, ce qui la relève. Les deux effets jouent en sens contraire
+/// et l'on ne sait pas lequel l'emporte : Parisi et coll. (*Photodermatol
+/// Photoimmunol Photomed*, 2005) ont mesuré la transmission effective pour la
+/// prévitamine D3 au travers de vêtements en conditions de port, et trouvé
+/// qu'elle n'est jamais nulle.
 ///
 /// L'étoffe n'intervient que du côté de la synthèse. Le calcul de la rougeur
 /// reste conduit sur la peau nue, qui rougit la première : c'est elle qui fixe
@@ -175,9 +192,9 @@ enum ClothingPreset: String, CaseIterable, Codable, Identifiable, Sendable {
 enum Fabric: String, CaseIterable, Codable, Identifiable, Sendable {
     /// Denim, laine serrée, tissu foncé, double épaisseur.
     case dense
-    /// Coton d'été ordinaire, la valeur par défaut.
+    /// Coton d'été ordinaire, teinté, de grammage moyen.
     case standard
-    /// Lin clair, maille lâche, blanc fin.
+    /// T-shirt blanc, lin clair, maille lâche.
     case light
     /// Voile, mousseline, tissu mouillé ou distendu.
     case sheer
@@ -188,7 +205,7 @@ enum Fabric: String, CaseIterable, Codable, Identifiable, Sendable {
         switch self {
         case .dense:    return "Dense ou foncé"
         case .standard: return "Coton ordinaire"
-        case .light:    return "Léger ou clair"
+        case .light:    return "T-shirt blanc ou lin"
         case .sheer:    return "Voile ou mouillé"
         }
     }
@@ -196,19 +213,24 @@ enum Fabric: String, CaseIterable, Codable, Identifiable, Sendable {
     var detail: String {
         switch self {
         case .dense:    return "Denim, laine, tissu foncé serré"
-        case .standard: return "Coton d'été, jersey moyen"
-        case .light:    return "Lin clair, maille lâche, blanc fin"
+        case .standard: return "Coton d'été teinté, jersey moyen"
+        case .light:    return "T-shirt blanc, lin clair, maille lâche"
         case .sheer:    return "Mousseline, tissu mouillé ou distendu"
         }
     }
 
     /// Part du rayonnement UV que l'étoffe laisse atteindre la peau.
+    ///
+    /// Valeurs calées sur les UPF mesurés de vêtements courants : au-delà de 50
+    /// pour un denim ou une laine serrée, autour de 14 pour un coton d'été
+    /// teinté, de 3 à 7 pour le t-shirt blanc d'été, sous 3 pour un tissu
+    /// mouillé ou distendu.
     var transmission: Double {
         switch self {
-        case .dense:    return 0.01
-        case .standard: return 0.05
-        case .light:    return 0.15
-        case .sheer:    return 0.30
+        case .dense:    return 0.02
+        case .standard: return 0.07
+        case .light:    return 0.20
+        case .sheer:    return 0.35
         }
     }
 

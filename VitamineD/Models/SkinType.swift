@@ -2,18 +2,47 @@ import Foundation
 
 /// Phototype de Fitzpatrick.
 ///
-/// Deux constantes physiologiques sont attachées à chaque phototype :
+/// Deux constantes physiologiques sont attachées à chaque phototype, et elles
+/// ne se comportent pas du tout de la même façon. C'est le fait le plus
+/// contre-intuitif de tout le modèle, et il vaut d'être exposé en clair.
 ///
-/// - `medJoulesPerSquareMetre` : la dose érythémale minimale (DEM), soit l'énergie
-///   UV pondérée par le spectre d'action de l'érythème (CIE 1987) nécessaire pour
-///   produire une rougeur perceptible 24 h après l'exposition, sur une peau non
-///   acclimatée. Valeurs usuelles de la littérature photobiologique
-///   (1 SED = 100 J/m²).
+/// - `medJoulesPerSquareMetre` : dose érythémale minimale (DEM), soit l'énergie
+///   UV pondérée par le spectre d'action de l'érythème (CIE 1987, McKinlay &
+///   Diffey) qui produit une rougeur perceptible vingt-quatre heures après
+///   l'exposition, sur une peau non acclimatée. L'unité usuelle est la dose
+///   érythémale standard, 1 SED = 100 J/m². Les valeurs retenues couvrent
+///   2 SED pour le phototype I à 10 SED pour le VI, l'ordre de grandeur admis
+///   dans la littérature photobiologique. La dispersion réelle **à l'intérieur
+///   d'un même phototype** atteint un facteur deux : ces chiffres classent, ils
+///   ne mesurent pas.
 ///
 /// - `vitaminDFactor` : rendement relatif de la photoconversion du
 ///   7-déhydrocholestérol en prévitamine D3, à dose UV égale, normalisé sur le
-///   phototype III. La mélanine absorbe les UVB en compétition avec le 7-DHC :
-///   une peau foncée produit nettement moins de vitamine D pour la même dose.
+///   phototype III.
+///
+/// ## Ce que ces chiffres ont changé
+///
+/// L'application appliquait auparavant un facteur de 1,40 pour le phototype I
+/// et de 0,30 pour le VI — un rapport de plus de quatre. C'était l'intuition
+/// courante : la mélanine absorbe les UVB en compétition avec le 7-DHC, donc
+/// une peau foncée produirait beaucoup moins de vitamine D. La mesure ne le
+/// confirme pas.
+///
+/// Young et coll. (*J Invest Dermatol*, 2020) ont exposé 102 volontaires de
+/// phototypes II à VI à la même dose sub-érythémale sur 85 % de la surface
+/// corporelle. Le facteur d'inhibition par la mélanine, entre les extrêmes II
+/// et VI, ressort à **1,3 à 1,4 seulement** selon la source de rayonnement, et
+/// seul le phototype II se distingue significativement des autres. Une revue
+/// systématique antérieure (Neale et coll., *Photochem Photobiol Sci*, 2016)
+/// trouvait déjà douze études partagées : sept voyaient une réduction sur peau
+/// foncée, cinq n'en voyaient aucune.
+///
+/// La conclusion des auteurs mérite d'être citée dans l'esprit : l'effet de la
+/// mélanine sur la synthèse de vitamine D est **petit comparé à son effet sur
+/// l'érythème**. Les facteurs ci-dessous s'étalent donc de 1,12 à 0,82, tandis
+/// que la DEM, elle, garde son rapport de cinq. Conséquence directe et
+/// vérifiable à l'écran : une peau foncée obtient à peu près autant de vitamine
+/// D qu'une peau claire, et dispose de bien plus de temps pour l'obtenir.
 enum SkinType: Int, CaseIterable, Codable, Identifiable, Sendable {
     case i = 1
     case ii = 2
@@ -37,14 +66,17 @@ enum SkinType: Int, CaseIterable, Codable, Identifiable, Sendable {
     }
 
     /// Rendement relatif de synthèse de la vitamine D (phototype III = 1,0).
+    ///
+    /// Échelle calée sur Young et coll. 2020 : le rapport entre les phototypes
+    /// II et VI vaut 1,35, et les phototypes III à VI se tiennent de près.
     var vitaminDFactor: Double {
         switch self {
-        case .i:   return 1.40
-        case .ii:  return 1.20
+        case .i:   return 1.12
+        case .ii:  return 1.10
         case .iii: return 1.00
-        case .iv:  return 0.70
-        case .v:   return 0.45
-        case .vi:  return 0.30
+        case .iv:  return 0.95
+        case .v:   return 0.88
+        case .vi:  return 0.815
         }
     }
 

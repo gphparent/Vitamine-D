@@ -50,17 +50,32 @@ struct UVEngineTests {
 
     // MARK: - Étalonnage
 
-    @Test("Repère clinique : environ 1 000 UI en une douzaine de minutes")
-    func clinicalCalibration() {
-        // Phototype III, 25 % de peau découverte, indice UV 7, Soleil haut.
+    @Test("Règle de Holick : un quart de DEM sur un quart du corps")
+    func holicksRuleCalibration() {
+        // La règle dit 1 000 UI, mais elle a été établie sous une lampe
+        // fluorescente et l'appliquer au Soleil la fait surestimer d'environ un
+        // tiers (Fioletov et coll. 2010). La cible honnête est donc quelque
+        // 750 UI, et le modèle doit tomber sous la règle brute sans s'en
+        // éloigner absurdement.
+        //
+        // Le reste du corps est habillé de tissu dense : le repère a été mesuré
+        // sur une surface irradiée et une autre à l'abri, pas sur un cobaye en
+        // t-shirt.
         var subject = profile(exposedFraction: .custom)
         subject.exposure.customRegions = [.face, .neck, .upperArms, .forearms, .hands]
-        let fraction = subject.exposure.exposedBodyFraction
-        #expect(abs(fraction - 0.25) < 0.05)
+        subject.exposure.fabric = .dense
+        #expect(abs(subject.exposure.exposedBodyFraction - 0.25) < 0.05)
 
         let rates = UVEngine.rates(profile: subject, uvIndex: 7, solarElevation: 60)
-        let minutesTo1000 = 1000 / rates.vitaminDIUPerMinute
-        #expect(minutesTo1000 > 8 && minutesTo1000 < 18)
+
+        // Durée nécessaire pour consommer un quart de la DEM du phototype III.
+        let quarterMED = subject.effectiveMED / 4
+        let minutes = quarterMED / (rates.erythemalJoulesPerMinute)
+        let produced = UVEngine.saturated(
+            rawIU: rates.vitaminDIUPerMinute * minutes, profile: subject)
+
+        #expect(produced > 500)
+        #expect(produced < 1_000)
     }
 
     @Test("Temps de brûlure conforme aux repères des phototypes")
@@ -122,15 +137,47 @@ struct UVEngineTests {
         #expect(ratio > 5 && ratio < 6)
     }
 
-    @Test("L'âge réduit la synthèse sans toucher au risque de brûlure")
-    func ageAffectsSynthesisOnly() {
-        let young = UVEngine.rates(profile: profile(age: 20), uvIndex: 8, solarElevation: 60)
-        let old = UVEngine.rates(profile: profile(age: 70), uvIndex: 8, solarElevation: 60)
+    @Test("Vieillir ne pénalise plus la synthèse avant un âge avancé")
+    func ageOnlyPenalisesTheVeryOld() {
+        // Borecka et coll. 2024 : chez des adultes valides, la concentration
+        // cutanée en 7-déhydrocholestérol ne diffère pas entre jeunes et âgés,
+        // ni la montée de vitamine D3 après exposition. La pénalité de 1 % par
+        // an dès vingt ans, héritée d'une mesure de 1985 sur peau prélevée, ne
+        // tient plus. Il en reste une décroissance lente aux très grands âges,
+        // là où l'ancienne mesure gardait sa part de vérité.
+        #expect(profile(age: 20).ageFactor == 1.0)
+        #expect(profile(age: 45).ageFactor == 1.0)
+        #expect(profile(age: 70).ageFactor == 1.0)
+        #expect(profile(age: 85).ageFactor < 1.0)
+        #expect(profile(age: 120).ageFactor >= 0.7)
 
-        #expect(old.vitaminDIUPerMinute < young.vitaminDIUPerMinute)
-        #expect(abs(old.medFractionPerMinute - young.medFractionPerMinute) < 1e-9)
-        #expect(abs(profile(age: 70).ageFactor - 0.5) < 0.01)
-        #expect(profile(age: 15).ageFactor == 1.0)
+        let middleAged = UVEngine.rates(profile: profile(age: 45), uvIndex: 8, solarElevation: 60)
+        let veryOld = UVEngine.rates(profile: profile(age: 90), uvIndex: 8, solarElevation: 60)
+        #expect(veryOld.vitaminDIUPerMinute < middleAged.vitaminDIUPerMinute)
+        // Et l'âge ne touche toujours pas au risque de brûlure.
+        #expect(abs(veryOld.medFractionPerMinute - middleAged.medFractionPerMinute) < 1e-9)
+    }
+
+    // MARK: - Mélanine
+
+    @Test("La mélanine freine peu la synthèse et beaucoup l'érythème")
+    func melaninBlocksErythemaFarMoreThanSynthesis() {
+        // Young et coll. 2020, sur 102 volontaires exposés à la même dose
+        // sub-érythémale : le facteur d'inhibition entre phototypes II et VI
+        // vaut 1,3 à 1,4 seulement. L'application retenait auparavant un
+        // rapport de quatre, l'intuition plutôt que la mesure.
+        let ratio = SkinType.ii.vitaminDFactor / SkinType.vi.vitaminDFactor
+        #expect(ratio > 1.25 && ratio < 1.45)
+
+        // Tandis que du côté de la rougeur, l'écart reste considérable.
+        let medRatio = SkinType.vi.medJoulesPerSquareMetre
+            / SkinType.ii.medJoulesPerSquareMetre
+        #expect(medRatio > 3)
+        #expect(medRatio > ratio * 2)
+
+        // L'ordre reste monotone : plus de mélanine, moins de synthèse.
+        let factors = SkinType.allCases.map(\.vitaminDFactor)
+        #expect(factors == factors.sorted(by: >))
     }
 
     @Test("Le rendement est meilleur quand le Soleil est haut")
@@ -259,8 +306,10 @@ struct UVEngineTests {
         let values = order.map(\.transmission)
         #expect(values == values.sorted())
         #expect(values.allSatisfy { $0 > 0 && $0 < 1 })
-        // Un jean dépasse UPF 50, un voile tombe sous 4.
-        #expect(Fabric.dense.upf > 50)
+        // Un jean atteint UPF 50, le t-shirt blanc d'été reste dans les 3 à 7
+        // mesurés sur des vêtements réels, un voile tombe sous 4.
+        #expect(Fabric.dense.upf >= 50)
+        #expect(Fabric.light.upf >= 3 && Fabric.light.upf <= 7)
         #expect(Fabric.sheer.upf < 4)
     }
 

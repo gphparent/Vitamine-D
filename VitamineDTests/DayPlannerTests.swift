@@ -258,9 +258,12 @@ struct DayPlannerTests {
 
     @Test("Les bandes de rendement suivent la hauteur du Soleil")
     func yieldBandsFollowElevation() {
+        // Le seuil bas suit `vitaminDWinterElevation`, relevé de 25° à 30° pour
+        // coller à Webb, Kline et Holick 1988 : pas de prévitamine D3 détectable
+        // au-dessous.
         #expect(DayPlanner.YieldBand(solarElevation: 10) == .negligible)
-        #expect(DayPlanner.YieldBand(solarElevation: 24.9) == .negligible)
-        #expect(DayPlanner.YieldBand(solarElevation: 25) == .partial)
+        #expect(DayPlanner.YieldBand(solarElevation: 29.9) == .negligible)
+        #expect(DayPlanner.YieldBand(solarElevation: 30) == .partial)
         #expect(DayPlanner.YieldBand(solarElevation: 44.9) == .partial)
         #expect(DayPlanner.YieldBand(solarElevation: 45) == .optimal)
         #expect(DayPlanner.YieldBand(solarElevation: 80) == .optimal)

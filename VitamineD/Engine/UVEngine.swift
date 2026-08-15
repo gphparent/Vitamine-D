@@ -74,24 +74,60 @@ struct EnvironmentFactors: Codable, Equatable, Sendable {
 ///
 /// ## Sur la validité du modèle
 ///
-/// Les constantes viennent de la littérature photobiologique publiée, mais la
-/// synthèse cutanée réelle varie d'un facteur deux ou trois entre individus de
-/// même phototype. Les durées calculées ici sont des ordres de grandeur utiles,
-/// pas des mesures. Aucune décision médicale ne devrait en dépendre.
+/// Les constantes de ce fichier ne se valent pas, et il serait malhonnête de
+/// les présenter sur un même plan. Elles se rangent en trois niveaux, indiqués
+/// individuellement plus bas.
+///
+/// 1. **Définitions et géométrie.** L'équivalence 1 point d'indice UV =
+///    25 mW/m² pondérés érythème est une convention CIE, pas une mesure. Les
+///    projections d'un cylindre et les facteurs de forme du ciel sont de la
+///    géométrie. Rien n'y est ajustable.
+/// 2. **Valeurs mesurées et publiées.** Les doses érythémales minimales par
+///    phototype, l'effet de la mélanine sur la synthèse, la transmission des
+///    étoffes, la paramétrisation de l'indice UV par ciel clair. Elles portent
+///    ici le nom de leur source.
+/// 3. **Ajustements et constructions propres à cette application.** La
+///    constante d'étalonnage de la synthèse, la table de rendement selon la
+///    hauteur solaire, la demi-vie de la charge photochimique. Elles sont
+///    signalées comme telles, sans exception.
+///
+/// Il ne faut pas s'illusionner sur la précision d'ensemble. Même en supposant
+/// chaque constante juste, la réponse individuelle à une exposition identique
+/// varie d'un facteur deux ou trois entre personnes de même phototype — c'est
+/// l'un des rares points sur lesquels toute la littérature s'accorde. Les
+/// durées calculées ici sont des ordres de grandeur utiles, pas des mesures.
+/// Aucune décision médicale ne devrait en dépendre.
 enum UVEngine {
 
     // MARK: - Constantes photobiologiques
 
     /// Irradiance érythémale correspondant à un point d'indice UV, en W/m².
-    /// Définition de la CIE : 1 UVI = 25 mW/m² pondérés érythème.
+    ///
+    /// **Niveau 1 : définition.** Convention CIE, 1 UVI = 25 mW/m² pondérés par
+    /// le spectre d'action de l'érythème (CIE 1987). Rien à mesurer ni à
+    /// ajuster ici.
     static let wattsPerUVIndexPoint = 0.025
 
     /// Constante d'étalonnage de la synthèse cutanée, en
     /// UI · min⁻¹ · (point d'UVI)⁻¹ · (fraction de surface corporelle)⁻¹.
     ///
-    /// Calée sur le repère clinique classique : un adulte de phototype III,
-    /// 25 % de peau découverte, sous un indice UV de 7 et un Soleil haut,
-    /// atteint environ 1 000 UI en une douzaine de minutes.
+    /// **Niveau 3 : ajustement propre à cette application.** Cette valeur ne
+    /// vient d'aucune publication. Elle a été choisie pour que le modèle
+    /// reproduise la règle de Holick — un quart de DEM sur un quart de la
+    /// surface corporelle équivaut à 1 000 UI par voie orale. C'est donc **un
+    /// seul nombre ajusté sur une seule règle de pouce qui porte toute
+    /// l'échelle en unités internationales de l'application**.
+    ///
+    /// Et cette règle est elle-même contestée. Elle a été établie sous une
+    /// lampe fluorescente, dont le spectre diffère sensiblement de celui du
+    /// Soleil ; Fioletov et coll. (*J Steroid Biochem Mol Biol*, 2010) estiment
+    /// que l'appliquer au rayonnement solaire fausse l'équivalence d'environ un
+    /// tiers. Le modèle, tel qu'il est calé, rend 641 UI là où la règle brute en
+    /// annonce 1 000 — soit quinze pour cent sous la règle corrigée. C'est une
+    /// coïncidence rassurante, pas une validation.
+    ///
+    /// Si un chiffre de cette application devait se révéler faux d'un facteur
+    /// deux, ce serait celui-ci.
     static let synthesisConstant = 55.0
 
     /// Plafond de synthèse pour le corps entier, en UI.
@@ -101,6 +137,14 @@ enum UVEngine {
     /// l'exposition n'augmente plus le rendement, mais continue d'augmenter la
     /// dose érythémale. C'est le mécanisme qui rend impossible une intoxication
     /// à la vitamine D par le seul soleil.
+    ///
+    /// **Niveau 3.** Le mécanisme est solidement établi ; le chiffre l'est
+    /// moins. La littérature situe la production d'une exposition du corps
+    /// entier à une DEM entre 10 000 et 25 000 UI, une fourchette large. Les
+    /// 20 000 UI retenus ici ne sont pas cette production mais l'asymptote de
+    /// photo-équilibre, que la courbe approche sans jamais l'atteindre : le
+    /// modèle rend 8 270 UI à une DEM du corps entier, soit un peu sous le bas de
+    /// la fourchette publiée. L'erreur va donc dans le sens prudent.
     static let wholeBodySynthesisCeiling = 20_000.0
 
     // MARK: - Efficacité spectrale
@@ -108,15 +152,28 @@ enum UVEngine {
     /// Rendement relatif de la bande UVB utile à la synthèse, en fonction de la
     /// hauteur du Soleil.
     ///
-    /// Le spectre d'action de la vitamine D culmine vers 297 nm, plus court que
-    /// celui de l'érythème. Comme l'absorption par l'ozone croît fortement vers
-    /// les courtes longueurs d'onde, l'allongement du trajet atmosphérique
-    /// quand le Soleil descend appauvrit le rayonnement en UVB bien plus vite
-    /// qu'il ne réduit l'indice UV. En pratique, la synthèse s'éteint alors que
-    /// l'indice UV reste mesurable : c'est l'« hiver vitaminique » des hautes
-    /// latitudes, où le Soleil brille sans jamais monter assez haut.
+    /// Le spectre d'action de la production de prévitamine D3 culmine à
+    /// 298 ± 2 nm (CIE 174:2006), plus court que celui de l'érythème. Comme
+    /// l'absorption par l'ozone croît fortement vers les courtes longueurs
+    /// d'onde, l'allongement du trajet atmosphérique quand le Soleil descend
+    /// appauvrit le rayonnement en UVB bien plus vite qu'il ne réduit l'indice
+    /// UV. En pratique, la synthèse s'éteint alors que l'indice UV reste
+    /// mesurable : c'est l'« hiver vitaminique » des hautes latitudes, où le
+    /// Soleil brille sans jamais monter assez haut.
     ///
-    /// Table empirique normalisée sur les hauteurs supérieures à 65°.
+    /// **Niveau 3 : construction propre à cette application.** Une version
+    /// antérieure de ce commentaire présentait la table comme « empirique et
+    /// normalisée sur les hauteurs supérieures à 65° », ce qui laissait croire
+    /// à une origine expérimentale. Elle n'en a pas. Je l'ai bâtie pour
+    /// reproduire trois comportements qualitatifs connus : synthèse nulle sous
+    /// 10° de hauteur, hiver vitaminique aux hauteurs faibles, plein rendement
+    /// au-delà de 65°. Aucune donnée derrière chaque point.
+    ///
+    /// La manière correcte de faire ce calcul est d'intégrer le spectre
+    /// d'action CIE 174:2006 contre un spectre d'irradiance modélisé par
+    /// transfert radiatif, plutôt que de multiplier un indice UV large bande
+    /// par un facteur scalaire. C'est l'approche de la littérature, et c'est le
+    /// remplacement qui améliorerait le plus ce moteur.
     private static let efficiencyTable: [(elevation: Double, efficiency: Double)] = [
         (10, 0.00), (15, 0.05), (20, 0.12), (25, 0.24), (30, 0.38),
         (35, 0.52), (40, 0.66), (45, 0.78), (50, 0.87), (55, 0.93),
@@ -129,12 +186,23 @@ enum UVEngine {
     /// Hauteur solaire maximale du jour en deçà de laquelle on parle d'« hiver
     /// vitaminique ».
     ///
-    /// Correspond à un angle zénithal de 65°, seuil usuellement retenu comme
-    /// celui où le flux UVB devient négligeable. C'est ce qui décrit la
-    /// situation de Montréal ou de Boston de novembre à février : le Soleil
-    /// brille, l'indice UV n'est pas nul, et pourtant la synthèse cutanée est
-    /// pratiquement arrêtée.
-    static let vitaminDWinterElevation = 25.0
+    /// **Niveau 2, déduit d'une mesure.** Webb, Kline et Holick (*J Clin
+    /// Endocrinol Metab*, 1988) ont exposé du 7-déhydrocholestérol au soleil
+    /// d'hiver à Boston (42,2° N) et à Edmonton, sans obtenir de prévitamine D3
+    /// de novembre à février, et concluaient à un hiver vitaminique à toute
+    /// latitude supérieure à 34°. Ce critère de latitude se traduit
+    /// directement : au solstice d'hiver, à 34° de latitude, le Soleil culmine
+    /// à 32,6°. D'où le seuil retenu ici.
+    ///
+    /// Il valait auparavant 25°, ce qui reposait sur un angle zénithal de 65°
+    /// cité de mémoire plutôt que déduit d'une mesure — et déclarait donc
+    /// productives des journées où Webb et coll. n'ont rien détecté.
+    ///
+    /// Le seuil reste flou par nature. Webb dosait de la prévitamine D3 dans des
+    /// ampoules, un essai plus sensible que la peau ; à l'inverse, la synthèse
+    /// ne s'arrête pas net à une hauteur donnée, elle devient seulement trop
+    /// faible pour compter sur une journée.
+    static let vitaminDWinterElevation = 30.0
 
     /// Hauteur solaire à partir de laquelle la synthèse devient efficace.
     /// Correspond à la règle de l'ombre : ombre plus courte que la personne.
@@ -201,6 +269,12 @@ enum UVEngine {
     /// faisceau. Aux hauteurs utiles à la vitamine D, elle va d'un tiers à
     /// six dixièmes. La distinction compte ici parce que le faisceau direct
     /// et le ciel diffus n'atteignent pas un corps de la même façon.
+    ///
+    /// **Niveau 3 : ajustement propre à cette application.** La forme
+    /// 0,62·√sin(h) est de moi. Elle reproduit l'ordre de grandeur admis — la
+    /// part directe du rayonnement érythémal par ciel clair passe d'environ un
+    /// tiers à Soleil rasant à un peu plus de la moitié à Soleil haut — mais
+    /// aucun jeu de mesures ne l'a produite.
     private static func directBeamFraction(solarElevation: Double) -> Double {
         let sine = sin(solarElevation * .pi / 180)
         guard sine > 0 else { return 0 }
@@ -210,7 +284,8 @@ enum UVEngine {
     /// Éclairement moyen sur l'ensemble de la peau d'un corps **debout**,
     /// rapporté à l'éclairement horizontal que mesure l'indice UV.
     ///
-    /// Le corps est traité comme un cylindre vertical. Pour le faisceau direct,
+    /// **Niveau 1 pour la géométrie, niveau 3 pour la part directe** qu'elle
+    /// utilise. Le corps est traité comme un cylindre vertical. Pour le faisceau direct,
     /// l'aire projetée d'un cylindre vaut cos(h)/π de son aire totale ; rapportée
     /// à l'horizontale, qui reçoit sin(h), il reste cotan(h)/π. Pour le ciel
     /// diffus, un point d'une paroi verticale ne voit qu'une demi-voûte, d'où un
@@ -236,6 +311,11 @@ enum UVEngine {
     /// pour la courbure du corps et son propre ombrage : un dormeur n'est pas
     /// une plaque plane. La valeur ne dépend pas de la hauteur du Soleil, celle-ci
     /// étant déjà contenue dans l'indice UV horizontal.
+    ///
+    /// La correction de 0,80 est **de niveau 3** : je l'ai choisie. Elle place
+    /// le résultat à 0,40, dans la fourchette de 0,4 à 0,5 couramment rapportée
+    /// pour le rapport d'exposition d'un corps allongé — mais elle n'en est pas
+    /// tirée.
     static let lyingIrradianceRatio = 0.5 * 0.80
 
     /// Correction de posture, rapportée à la position debout.
