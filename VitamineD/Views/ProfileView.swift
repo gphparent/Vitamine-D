@@ -174,7 +174,12 @@ struct ProfileView: View {
                                    selection: dailyPlanTime,
                                    displayedComponents: .hourAndMinute)
                     }
-                    if model.notifications.authorisationStatus != .authorized {
+                    if model.notifications.authorisationStatus == .denied {
+                        // Une fois refusées, les notifications ne se
+                        // redemandent pas non plus : le système ne repose la
+                        // question qu'une seule fois, ici comme pour Santé.
+                        Button("Ouvrir les réglages de l'application") { openAppSettings() }
+                    } else if model.notifications.authorisationStatus != .authorized {
                         Button("Autoriser les notifications") {
                             Task { await model.notifications.requestAuthorisation() }
                         }
@@ -213,7 +218,7 @@ struct ProfileView: View {
                             .foregroundStyle(.orange)
                     }
 
-                    Button("Ouvrir Réglages ▸ Santé") { openHealthSettings() }
+                    Button("Ouvrir l'application Santé") { openHealthApp() }
                         .font(.footnote)
                 } header: {
                     Text("Santé")
@@ -342,39 +347,89 @@ struct ProfileView: View {
     /// l'existence d'une donnée. L'écriture, elle, est vérifiable.
     @ViewBuilder
     private var healthStatusRow: some View {
-        switch model.health.connection {
-        case .unavailable:
+        if model.health.connection == .unavailable {
             Label("Santé n'est pas disponible sur cet appareil",
                   systemImage: "xmark.circle")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-
-        case .notRequested:
+        } else {
+            // Le bouton reste offert quel que soit l'état. Le masquer une fois
+            // la question posée laissait sans recours ceux à qui le système
+            // n'affiche plus rien — c'est-à-dire tout le monde, dès la seconde
+            // fois.
             Button {
                 requestHealthAccess()
             } label: {
-                Label("Demander l'accès à Santé", systemImage: "heart.text.square")
+                Label(model.health.connection == .notRequested
+                          ? "Demander l'accès à Santé"
+                          : "Revérifier l'accès",
+                      systemImage: "heart.text.square")
             }
 
-        case .requested:
-            VStack(alignment: .leading, spacing: 4) {
-                Label("Accès demandé", systemImage: "checkmark.circle")
-                    .font(.footnote)
-                    .foregroundStyle(Color(red: 0.30, green: 0.66, blue: 0.42))
+            if let outcome = model.health.lastOutcome {
+                outcomeRow(outcome)
+            }
 
-                if model.profile.writesHealthKit {
-                    Text(writeStatusSentence)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Text("Ce qui a été accordé en lecture n'est pas consultable : "
-                     + "Apple l'interdit, pour qu'un refus ne révèle pas "
-                     + "l'existence d'une donnée. Vérifiez dans Réglages ▸ Santé "
-                     + "▸ Accès aux données.")
+            if model.profile.writesHealthKit {
+                Text(writeStatusSentence)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Text("Ce qui a été accordé en lecture n'est pas consultable : Apple "
+                 + "l'interdit, pour qu'un refus ne puisse pas révéler l'existence "
+                 + "d'une donnée. Seule l'application Santé le montre.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    /// Ce que le système a répondu au dernier appui.
+    @ViewBuilder
+    private func outcomeRow(_ outcome: HealthKitService.RequestOutcome) -> some View {
+        switch outcome {
+        case .presented:
+            Label("Le système a présenté sa demande.", systemImage: "checkmark.circle")
+                .font(.caption)
+                .foregroundStyle(Color(red: 0.30, green: 0.66, blue: 0.42))
+
+        case .alreadyAsked:
+            VStack(alignment: .leading, spacing: 6) {
+                Label("iOS ne repose jamais la question", systemImage: "info.circle")
+                    .font(.caption.weight(.medium))
+                Text("""
+                Rien ne s'affiche parce que la feuille d'autorisation a déjà été \
+                présentée une fois — au moment où vous avez activé l'interrupteur. \
+                iOS ne la montre plus jamais ensuite, même après une \
+                réinstallation. Tout se règle désormais dans l'application Santé.
+                """)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+                Button("Ouvrir Santé") { openHealthApp() }
+                    .font(.caption.weight(.medium))
+                Text("Puis : votre portrait en haut à droite ▸ Apps et services ▸ "
+                     + "Vitamine D.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+        case .failed(let message):
+            VStack(alignment: .leading, spacing: 4) {
+                Label("Refus de HealthKit", systemImage: "exclamationmark.triangle")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.orange)
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+        case .unavailable:
+            Text("Aucun type de donnée à demander sur cet appareil.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -399,10 +454,20 @@ struct ProfileView: View {
         }
     }
 
-    /// Ouvre la fiche de l'application dans Réglages, seul endroit où les
-    /// permissions de Santé se révoquent ou se rétablissent.
-    private func openHealthSettings() {
+    /// Ouvre la fiche de l'application dans Réglages.
+    ///
+    /// À ne pas confondre avec la destination utile pour Santé : les
+    /// autorisations HealthKit ne figurent pas sur cette page-là. Elle sert aux
+    /// notifications et à la position.
+    private func openAppSettings() {
         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
+    }
+
+    /// Ouvre l'application Santé, seul endroit où les autorisations HealthKit
+    /// se consultent et se modifient une fois la question posée.
+    private func openHealthApp() {
+        guard let url = URL(string: "x-apple-health://") else { return }
         UIApplication.shared.open(url)
     }
 

@@ -156,18 +156,66 @@ final class HealthKitService {
 
     // MARK: - Autorisation
 
-    func requestAuthorisation(writing: Bool = false, dietary: Bool = false) async {
-        guard isAvailable else { return }
+    /// Ce qu'une demande d'autorisation a réellement produit.
+    ///
+    /// Le bouton précédent « ne marchait pas », et il était impossible de dire
+    /// en quoi : la demande ne laissait aucune trace, ni feuille affichée, ni
+    /// erreur, ni explication. Le cas le plus fréquent n'est pourtant pas une
+    /// panne — c'est qu'iOS ne repose jamais la question. Une fois la feuille
+    /// présentée, elle ne revient plus, et tout appui ultérieur est
+    /// silencieusement sans effet.
+    enum RequestOutcome: Equatable, Sendable {
+        /// La feuille du système a été présentée.
+        case presented
+        /// Rien ne s'est affiché : la question avait déjà été posée. La suite
+        /// se règle dans l'application Santé, pas ici.
+        case alreadyAsked
+        /// HealthKit a refusé la demande, avec son propre message.
+        case failed(String)
+        case unavailable
+    }
+
+    private(set) var lastOutcome: RequestOutcome?
+
+    @discardableResult
+    func requestAuthorisation(writing: Bool = false,
+                              dietary: Bool = false) async -> RequestOutcome {
+        guard isAvailable else {
+            lastOutcome = .unavailable
+            return .unavailable
+        }
         let share = writing ? writeTypes(includingDietary: dietary) : []
-        guard !readTypes.isEmpty || !share.isEmpty else { return }
+        let read = readTypes
+        guard !read.isEmpty || !share.isEmpty else {
+            lastOutcome = .unavailable
+            return .unavailable
+        }
+
+        // L'état d'avant décide de ce que le système fera : s'il ne compte pas
+        // demander, aucune feuille n'apparaîtra. Le savoir permet de le dire,
+        // au lieu de laisser quelqu'un devant un bouton inerte.
+        let before = (try? await store.statusForAuthorizationRequest(
+            toShare: share, read: read)) ?? .unknown
+
+        var outcome: RequestOutcome
         do {
-            try await store.requestAuthorization(toShare: share, read: readTypes)
+            try await store.requestAuthorization(toShare: share, read: read)
             isAuthorised = true
+            lastAuthorisationError = nil
+            outcome = before == .shouldRequest ? .presented : .alreadyAsked
         } catch {
             isAuthorised = false
+            lastAuthorisationError = error.localizedDescription
+            outcome = .failed(error.localizedDescription)
         }
+
         await refreshRequestStatus(writing: writing, dietary: dietary)
+        lastOutcome = outcome
+        return outcome
     }
+
+    /// Dernier refus opposé par HealthKit à une demande d'autorisation.
+    private(set) var lastAuthorisationError: String?
 
     /// Relit l'état de la demande auprès du système.
     ///
