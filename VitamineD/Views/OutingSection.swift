@@ -12,6 +12,8 @@ struct OutingSection: View {
     @Environment(AppModel.self) private var model
     @State private var lastRecord: SessionRecord?
     @State private var showsSummary = false
+    @State private var isCorrectingStart = false
+    @State private var correctedStart = Date()
 
     var body: some View {
         Group {
@@ -194,6 +196,39 @@ struct OutingSection: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(Theme.burnColour(burnLevel))
+
+                    // Le chronomètre ne sait que ce qu'on lui a dit. Qui appuie
+                    // sur « je sors » vingt minutes après être sorti voit un
+                    // décompte faux et des alertes trop tardives — c'est-à-dire
+                    // le seul cas où l'application se trompe dans le sens qui
+                    // brûle. La correction est donc offerte pendant la sortie,
+                    // et pas seulement après coup dans l'historique.
+                    if !isCorrectingStart {
+                        Button("J'étais sorti avant") {
+                            correctedStart = model.progress.elapsed > 0
+                                ? model.now.addingTimeInterval(-model.progress.elapsed)
+                                : model.now
+                            isCorrectingStart = true
+                        }
+                        .font(.caption)
+                    } else {
+                        VStack(spacing: 8) {
+                            DatePicker("Sorti à", selection: $correctedStart,
+                                       in: ...model.now,
+                                       displayedComponents: .hourAndMinute)
+                            HStack {
+                                Button("Annuler") { isCorrectingStart = false }
+                                Spacer()
+                                Button("Corriger") {
+                                    model.correctSessionStart(to: correctedStart)
+                                    isCorrectingStart = false
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(Theme.vitaminD)
+                            }
+                            .font(.footnote)
+                        }
+                    }
                 }
             }
 

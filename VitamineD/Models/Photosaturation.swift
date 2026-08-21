@@ -107,6 +107,44 @@ struct Photosaturation: Codable, Equatable, Sendable {
         exp(-load(at: date))
     }
 
+    // MARK: - Reconstruction depuis l'historique
+
+    /// Nombre de jours d'historique qui pèsent encore.
+    ///
+    /// À douze heures de demi-vie, trois jours laissent moins d'un pour cent.
+    /// Remonter plus loin coûterait du calcul pour un chiffre invisible.
+    static let rebuildWindowDays = 3.0
+
+    /// Reconstitue la charge à partir du seul historique.
+    ///
+    /// La charge était un accumulateur autonome : chaque sortie terminée y
+    /// versait sa dose, et rien ne l'en retirait jamais. C'était tenable tant
+    /// qu'une sortie, une fois close, ne bougeait plus. Dès lors qu'on peut la
+    /// corriger ou l'effacer, l'accumulateur pointe sur un passé qui n'existe
+    /// plus — une sortie supprimée continuerait de peser sur le rendement
+    /// annoncé, sans que rien à l'écran ne l'explique.
+    ///
+    /// Elle devient donc un état dérivé, recalculable à tout moment. C'est
+    /// aussi ce qui la rend vérifiable : deux historiques identiques donnent la
+    /// même charge, ce qu'un accumulateur ne garantissait pas.
+    static func rebuilt(from records: [SessionRecord],
+                        asOf date: Date,
+                        profile: UserProfile) -> Photosaturation {
+        var rebuilt = Photosaturation.empty
+        let horizon = date.addingTimeInterval(-rebuildWindowDays * 86_400)
+
+        for record in records.filter({ $0.end > horizon }).sorted(by: { $0.end < $1.end }) {
+            var recordProfile = profile
+            recordProfile.exposure = BodyExposure.matching(
+                exposedPercentage: record.exposedBodyPercentage,
+                like: profile.exposure)
+            rebuilt.deposit(rawIU: record.rawOrSaturatedIU,
+                            at: record.end,
+                            profile: recordProfile)
+        }
+        return rebuilt
+    }
+
     // MARK: - Décodage
 
     /// Une charge enregistrée par une version antérieure était exprimée en UI

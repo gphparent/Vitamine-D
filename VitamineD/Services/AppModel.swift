@@ -554,6 +554,120 @@ final class AppModel {
         }
     }
 
+    // MARK: - Corriger l'historique
+
+    /// Lieu à retenir pour une sortie qu'on reconstitue.
+    ///
+    /// Celui de la sortie si elle en portait un, celui d'aujourd'hui sinon.
+    /// Les sorties d'avant l'enregistrement des coordonnées n'en ont pas : les
+    /// recalculer sous le ciel du lieu actuel vaut mieux que refuser de les
+    /// corriger.
+    func place(for record: SessionRecord?) -> ResolvedLocation? {
+        if let record, let latitude = record.latitude, let longitude = record.longitude {
+            return ResolvedLocation(latitude: latitude, longitude: longitude,
+                                    altitude: environment.altitude,
+                                    name: record.locationName, isManual: true)
+        }
+        return location
+    }
+
+    /// Recalcule ce qu'aurait produit une sortie décrite à la main.
+    ///
+    /// Sert à l'aperçu de la feuille de correction autant qu'à
+    /// l'enregistrement : l'utilisateur voit le chiffre bouger pendant qu'il
+    /// règle l'heure, et c'est bien ce chiffre-là qui sera conservé.
+    func estimateRecord(id: UUID = UUID(),
+                        start: Date,
+                        end: Date,
+                        exposure: BodyExposure,
+                        side: BodySide,
+                        at place: ResolvedLocation) -> SessionRecord {
+        var estimateProfile = profile
+        estimateProfile.exposure = exposure
+
+        return RetroactiveEstimator.estimate(
+            id: id, start: start, end: end,
+            profile: estimateProfile, side: side,
+            location: place, environment: environment,
+            uvIndexAt: retroactiveUVProvider(for: start, at: place))
+    }
+
+    /// Source d'indice UV pour une reconstitution.
+    ///
+    /// Les prévisions de la journée en cours quand elles couvrent la période,
+    /// le modèle de ciel clair sinon. Une sortie d'hier ne peut pas mieux : le
+    /// service météo ne rend pas le passé.
+    private func retroactiveUVProvider(for start: Date,
+                                       at place: ResolvedLocation) -> (Date) -> Double {
+        let sameDayAsPlan = plan.map { calendar.isDate($0.date, inSameDayAs: start) } ?? false
+        guard sameDayAsPlan, location?.latitude == place.latitude else {
+            return RetroactiveEstimator.clearSkyProvider(
+                latitude: place.latitude, longitude: place.longitude,
+                environment: environment)
+        }
+        return uvIndexProvider()
+    }
+
+    /// Ajoute une sortie oubliée, ou remplace une sortie corrigée.
+    ///
+    /// Le même point d'entrée pour les deux : une correction n'est qu'un ajout
+    /// qui connaît déjà son identifiant. L'historique reste trié du plus récent
+    /// au plus ancien, ordre dont dépendent `lastSessionEnd` et l'affichage.
+    func saveRecord(_ record: SessionRecord) {
+        history.removeAll { $0.id == record.id }
+        history.append(record)
+        history.sort { $0.end > $1.end }
+        history = Array(history.prefix(200))
+        store.save(history, for: .history)
+
+        rebuildPhotosaturation()
+        rebuildPlan()
+
+        // Santé écrit par identifiant de synchronisation : réécrire la même
+        // sortie remplace ses échantillons au lieu de les dupliquer.
+        if profile.writesHealthKit {
+            let dietary = profile.writesVitaminDAsDietary
+            Task { await health.write(record, includingDietary: dietary) }
+        }
+    }
+
+    func deleteRecord(_ record: SessionRecord) {
+        history.removeAll { $0.id == record.id }
+        store.save(history, for: .history)
+
+        rebuildPhotosaturation()
+        rebuildPlan()
+
+        if profile.writesHealthKit {
+            Task { await health.deleteSamples(forRecord: record.id) }
+        }
+    }
+
+    /// Reconstitue la charge photochimique après une modification de
+    /// l'historique. Le calcul lui-même vit dans ``Photosaturation``, où il se
+    /// teste sans monter tout un modèle d'application.
+    func rebuildPhotosaturation() {
+        photosaturation = Photosaturation.rebuilt(from: history, asOf: now, profile: profile)
+        store.save(photosaturation, for: .photosaturation)
+    }
+
+    /// Corrige l'heure de début de la sortie en cours.
+    ///
+    /// Le cas « j'ai oublié de dire que je sortais » : on lance la sortie une
+    /// demi-heure trop tard, et tout le décompte est faux. La correction ouvre
+    /// le premier segment plus tôt sans toucher aux suivants, puis relance les
+    /// alertes — dont l'échéance vient de se rapprocher d'autant.
+    func correctSessionStart(to date: Date) {
+        guard var session = activeSession, date < now else { return }
+        let corrected = min(date, session.segments.dropFirst().first?.start ?? now)
+        session.startDate = corrected
+        session.segments[0].start = corrected
+        activeSession = session
+        store.save(session, for: .activeSession)
+        updateProgress()
+        rescheduleSessionAlerts(for: session)
+    }
+
     @discardableResult
     func endSession() -> SessionRecord? {
         guard var session = activeSession else { return nil }
@@ -570,7 +684,14 @@ final class AppModel {
             exposedBodyPercentage: session.exposure(at: session.endDate ?? Date())
                 .exposedBodyPercentage,
             averageUVIndex: averageUVIndex(from: session.startDate,
-                                           to: session.endDate ?? now))
+                                           to: session.endDate ?? now),
+            // La dose brute et les coordonnées ne servent à rien aujourd'hui.
+            // Elles servent le jour où l'on corrige cette sortie : sans elles,
+            // impossible de recalculer la course du Soleil ni de reconstituer
+            // la charge cutanée.
+            rawVitaminDIU: progress.rawVitaminDIU,
+            latitude: session.latitude,
+            longitude: session.longitude)
 
         history.insert(record, at: 0)
         // Trois mois d'historique suffisent largement à voir une tendance.

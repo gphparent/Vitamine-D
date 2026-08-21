@@ -4,6 +4,8 @@ import SwiftUI
 struct HistoryView: View {
 
     @Environment(AppModel.self) private var model
+    @State private var editing: SessionRecord?
+    @State private var isAddingForgotten = false
 
     private var lastFourteenDays: [(day: Date, total: Double)] {
         let calendar = model.calendar
@@ -30,7 +32,37 @@ struct HistoryView: View {
                 solarElevation: model.solarPosition?.elevation ?? -90,
                 cloudCover: model.currentConditions?.cloudCover ?? 0))
             .navigationTitle("Historique")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        isAddingForgotten = true
+                    } label: {
+                        Label("Sortie oubliée", systemImage: "plus")
+                    }
+                    .disabled(model.location == nil)
+                }
+            }
+            .sheet(item: $editing) { record in
+                SessionEditorView(existing: record,
+                                  defaultExposure: model.profile.exposure,
+                                  defaultStart: record.start)
+            }
+            .sheet(isPresented: $isAddingForgotten) {
+                SessionEditorView(defaultExposure: model.profile.exposure,
+                                  defaultStart: defaultForgottenStart)
+            }
         }
+    }
+
+    /// Point de départ proposé pour une sortie oubliée : une demi-heure avant
+    /// maintenant, arrondie au quart d'heure. Personne ne se souvient d'être
+    /// sorti à 14 h 07, et une molette qu'on ne touche pas doit déjà proposer
+    /// quelque chose de plausible.
+    private var defaultForgottenStart: Date {
+        let half = model.now.addingTimeInterval(-30 * 60)
+        let quarter = 15.0 * 60
+        return Date(timeIntervalSince1970:
+                        (half.timeIntervalSince1970 / quarter).rounded() * quarter)
     }
 
     private var summary: some View {
@@ -504,9 +536,15 @@ struct HistoryView: View {
                         .foregroundStyle(.secondary)
                     Text("Aucune sortie enregistrée")
                         .font(.headline)
-                    Text("Les sorties apparaîtront ici une fois terminées.")
+                    Text("Les sorties apparaîtront ici une fois terminées. "
+                         + "Vous pouvez aussi en saisir une que vous avez "
+                         + "oublié de chronométrer.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                    Button("Ajouter une sortie oubliée") { isAddingForgotten = true }
+                        .font(.footnote.weight(.medium))
+                        .disabled(model.location == nil)
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -525,6 +563,15 @@ struct HistoryView: View {
     }
 
     private func row(_ record: SessionRecord) -> some View {
+        Button {
+            editing = record
+        } label: {
+            rowContent(record)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func rowContent(_ record: SessionRecord) -> some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(record.start.formatted(.dateTime.weekday(.abbreviated).day().month().hour().minute()))
@@ -533,6 +580,14 @@ struct HistoryView: View {
                      + "\(Int(record.exposedBodyPercentage)) % de peau")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                // Une sortie reconstituée repose sur un indice UV modélisé et
+                // sur une tenue déclarée de mémoire. Elle vaut moins qu'une
+                // mesure, et la liste ne doit pas les confondre.
+                if record.isRetroactive {
+                    Label("saisie à la main", systemImage: "pencil")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 3) {
@@ -543,7 +598,12 @@ struct HistoryView: View {
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(record.medFraction > 0.8 ? .red : .secondary)
             }
+            Image(systemName: "chevron.right")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .padding(.leading, 2)
         }
+        .contentShape(.rect)
     }
 }
 

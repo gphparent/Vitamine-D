@@ -38,6 +38,12 @@ struct Store {
 }
 
 /// Séance archivée, réduite à ce qui mérite d'être conservé.
+///
+/// Plusieurs champs sont facultatifs, et pour la même raison : les
+/// enregistrements des versions antérieures ne les portent pas, et un champ
+/// obligatoire les rendrait illisibles. Un historique est la seule chose de
+/// cette application qui ne se reconstitue pas — le perdre à une mise à jour
+/// serait impardonnable.
 struct SessionRecord: Identifiable, Codable, Equatable, Sendable {
     var id: UUID
     var start: Date
@@ -46,13 +52,87 @@ struct SessionRecord: Identifiable, Codable, Equatable, Sendable {
     var medFraction: Double
     var locationName: String
     var exposedBodyPercentage: Double
-    /// Indice UV moyen de la sortie. Facultatif : les enregistrements des
-    /// versions antérieures n'en portent pas, et un champ non optionnel les
-    /// rendrait illisibles.
+    /// Indice UV moyen de la sortie.
     var averageUVIndex: Double?
+
+    /// Dose **brute**, avant plafond de photo-équilibre.
+    ///
+    /// C'est elle, et non la dose plafonnée, que la peau porte réellement. La
+    /// conserver rend la charge photochimique reconstructible à partir du seul
+    /// historique : sans elle, corriger une sortie laissait la charge figée sur
+    /// une valeur qui ne correspondait plus à rien.
+    var rawVitaminDIU: Double?
+
+    /// Coordonnées du lieu, pour pouvoir recalculer la course du Soleil si la
+    /// sortie est corrigée après coup. Le nom seul n'y suffit pas.
+    var latitude: Double?
+    var longitude: Double?
+
+    /// Sortie saisie ou corrigée à la main, plutôt que chronométrée.
+    ///
+    /// La distinction se voit à l'écran. Une sortie reconstituée repose sur un
+    /// indice UV modélisé et sur une tenue déclarée de mémoire : elle vaut
+    /// moins qu'une mesure, et l'application n'a pas à faire semblant du
+    /// contraire.
+    var isRetroactive: Bool
+
+    init(id: UUID = UUID(),
+         start: Date,
+         end: Date,
+         vitaminDIU: Double,
+         medFraction: Double,
+         locationName: String,
+         exposedBodyPercentage: Double,
+         averageUVIndex: Double? = nil,
+         rawVitaminDIU: Double? = nil,
+         latitude: Double? = nil,
+         longitude: Double? = nil,
+         isRetroactive: Bool = false) {
+        self.id = id
+        self.start = start
+        self.end = end
+        self.vitaminDIU = vitaminDIU
+        self.medFraction = medFraction
+        self.locationName = locationName
+        self.exposedBodyPercentage = exposedBodyPercentage
+        self.averageUVIndex = averageUVIndex
+        self.rawVitaminDIU = rawVitaminDIU
+        self.latitude = latitude
+        self.longitude = longitude
+        self.isRetroactive = isRetroactive
+    }
+
+    /// Chaque champ est relu séparément : l'ajout d'un champ obligatoire ne
+    /// doit jamais rendre tout un historique indéchiffrable.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? c.decode(UUID.self, forKey: .id)) ?? UUID()
+        start = try c.decode(Date.self, forKey: .start)
+        end = try c.decode(Date.self, forKey: .end)
+        vitaminDIU = (try? c.decode(Double.self, forKey: .vitaminDIU)) ?? 0
+        medFraction = (try? c.decode(Double.self, forKey: .medFraction)) ?? 0
+        locationName = (try? c.decode(String.self, forKey: .locationName)) ?? "—"
+        exposedBodyPercentage =
+            (try? c.decode(Double.self, forKey: .exposedBodyPercentage)) ?? 0
+        averageUVIndex = try? c.decodeIfPresent(Double.self, forKey: .averageUVIndex)
+        rawVitaminDIU = try? c.decodeIfPresent(Double.self, forKey: .rawVitaminDIU)
+        latitude = try? c.decodeIfPresent(Double.self, forKey: .latitude)
+        longitude = try? c.decodeIfPresent(Double.self, forKey: .longitude)
+        isRetroactive = (try? c.decode(Bool.self, forKey: .isRetroactive)) ?? false
+    }
 
     var duration: TimeInterval { end.timeIntervalSince(start) }
     var minutes: Int { Int((duration / 60).rounded()) }
+
+    /// Dose brute portée par cette sortie.
+    ///
+    /// À défaut d'avoir été enregistrée — sorties d'avant l'ajout du champ — on
+    /// retient la dose plafonnée, qui lui est toujours inférieure. La charge
+    /// reconstituée est donc sous-estimée pour ces sorties-là, ce qui pousse à
+    /// annoncer un rendement plus élevé qu'il ne l'est. L'erreur n'excède
+    /// jamais la part que le plafond avait retranchée, et elle s'efface en un
+    /// jour ou deux avec la décroissance.
+    var rawOrSaturatedIU: Double { rawVitaminDIU ?? vitaminDIU }
 }
 
 extension Array where Element == SessionRecord {

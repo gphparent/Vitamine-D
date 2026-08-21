@@ -305,6 +305,24 @@ final class HealthKitService {
         }
     }
 
+    /// Retire de Santé les échantillons d'une sortie précise.
+    ///
+    /// Supprimer une sortie de l'historique sans la retirer de Santé laisserait
+    /// derrière elle une donnée que plus rien dans l'application ne justifie, et
+    /// que l'utilisateur devrait aller chasser à la main. Le filtre porte sur
+    /// l'identifiant de synchronisation, celui-là même qui rend l'écriture
+    /// idempotente.
+    func deleteSamples(forRecord id: UUID) async {
+        guard isAvailable else { return }
+        let identifiers = ["\(id.uuidString)-uv", "\(id.uuidString)-vitamined"]
+        let predicate = HKQuery.predicateForObjects(
+            withMetadataKey: HKMetadataKeySyncIdentifier,
+            allowedValues: identifiers)
+        for type in writeTypes(includingDietary: true) {
+            _ = try? await store.deleteObjects(of: type, predicate: predicate)
+        }
+    }
+
     /// Métadonnées d'un échantillon.
     ///
     /// L'identifiant dérive de celui de la sortie, ce qui rend l'écriture

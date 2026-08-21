@@ -333,6 +333,31 @@ struct BodyExposure: Codable, Equatable, Sendable {
         return 1.0 / effectiveSPF
     }
 
+    /// Tenue fictive découvrant une part de peau donnée.
+    ///
+    /// L'historique ne conserve d'une sortie que son pourcentage de peau
+    /// découverte, pas la tenue qui l'a produit. Pour reconstituer la charge
+    /// cutanée d'une sortie passée il faut pourtant un plafond de synthèse,
+    /// lequel dépend d'une surface. On repart donc du préréglé dont la surface
+    /// s'approche le plus, ce qui conserve l'étoffe et la protection
+    /// déclarées ; l'écart résiduel est de quelques points de pourcentage, sans
+    /// effet visible sur une charge qui aura décru de moitié dans la
+    /// demi-journée.
+    static func matching(exposedPercentage percentage: Double,
+                         like reference: BodyExposure) -> BodyExposure {
+        let target = percentage / 100
+        let best = ClothingPreset.allCases
+            .filter { $0 != .custom }
+            .min { lhs, rhs in
+                abs(normalisedFraction(for: lhs.exposedRegions) - target)
+                    < abs(normalisedFraction(for: rhs.exposedRegions) - target)
+            } ?? .tShirtShorts
+
+        var exposure = reference
+        exposure.preset = best
+        return exposure
+    }
+
     var summary: String {
         let percent = Int(exposedBodyPercentage.rounded())
         var parts = ["\(percent) % de peau exposée"]
