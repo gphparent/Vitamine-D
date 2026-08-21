@@ -407,6 +407,18 @@ struct TodayView: View {
             """)
             .font(.footnote)
             .foregroundStyle(.secondary)
+
+            GoldRule()
+
+            // Le paragraphe ci-dessus énonce le fait ; il ne le fait pas voir.
+            // Deux molettes et un schéma y parviennent en trois secondes là où
+            // le texte demande de la confiance.
+            NavigationLink {
+                SunRayView()
+            } label: {
+                Label("Voir les rayons passer", systemImage: "sun.max.trianglebadge.exclamationmark")
+                    .font(.subheadline.weight(.medium))
+            }
         }
     }
 

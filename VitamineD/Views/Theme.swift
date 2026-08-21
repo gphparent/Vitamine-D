@@ -54,6 +54,15 @@ enum Theme {
 
     static let vitaminD = Color(red: 0.98, green: 0.68, blue: 0.13)
 
+    /// Les deux bandes ultraviolettes, pour le schéma des rayons.
+    ///
+    /// Le choix n'est pas arbitraire : les UVA, plus proches du visible,
+    /// prennent le bleu ; les UVB, plus courts, le violet vers lequel l'œil
+    /// s'arrête. Personne ne voit ces longueurs d'onde, mais l'ordre du spectre
+    /// se lit d'instinct et vaut mieux qu'une paire de couleurs quelconques.
+    static let uvaColour = Color(red: 0.36, green: 0.62, blue: 0.96)
+    static let uvbColour = Color(red: 0.64, green: 0.36, blue: 0.92)
+
     // MARK: - Registre héraldique
 
     /// Pigments de l'icône, repris tels quels de `Tools/fabriquer-icone.py`.
