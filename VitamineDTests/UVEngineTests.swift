@@ -93,12 +93,27 @@ struct UVEngineTests {
         #expect(darkMinutes / lightMinutes > 3)
     }
 
-    @Test("Un phototype foncé synthétise moins pour la même dose")
-    func darkSkinSynthesisIsSlower() {
+    @Test("Un phototype foncé synthétise un peu moins, et brûle beaucoup plus tard")
+    func darkSkinSynthesisIsSlightlySlower() {
+        // Ce test affirmait un rapport de synthèse supérieur à trois entre les
+        // phototypes II et VI. Il encodait l'intuition que Young et coll. 2020
+        // ont démentie : le facteur mesuré est de 1,3 à 1,4. Un test qui répète
+        // la constante qu'il devrait contrôler ne contrôle rien — celui-ci
+        // aurait dû tomber quand la constante est devenue fausse, il tombait au
+        // contraire quand elle est devenue juste.
         let light = UVEngine.rates(profile: profile(skin: .ii), uvIndex: 8, solarElevation: 60)
         let dark = UVEngine.rates(profile: profile(skin: .vi), uvIndex: 8, solarElevation: 60)
+
         #expect(dark.vitaminDIUPerMinute < light.vitaminDIUPerMinute)
-        #expect(light.vitaminDIUPerMinute / dark.vitaminDIUPerMinute > 3)
+        let synthesisRatio = light.vitaminDIUPerMinute / dark.vitaminDIUPerMinute
+        #expect(synthesisRatio > 1.25 && synthesisRatio < 1.45)
+
+        // L'écart considérable est de l'autre côté : à dose égale, la peau
+        // foncée met quatre fois plus longtemps à rougir. C'est ce contraste,
+        // et non le seul rapport de synthèse, que l'application doit refléter.
+        let burnRatio = light.medFractionPerMinute / dark.medFractionPerMinute
+        #expect(burnRatio > 3)
+        #expect(burnRatio > synthesisRatio * 2)
     }
 
     @Test("La surface découverte agit proportionnellement sur la synthèse, pas sur la brûlure")
