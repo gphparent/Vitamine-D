@@ -284,29 +284,53 @@ struct TodayView: View {
     /// manteau et un t-shirt donnent des durées dans un rapport de un à six.
     private var clothingCard: some View {
         Card(title: "Tenue", systemImage: "tshirt") {
-            HStack(alignment: .firstTextBaseline) {
-                Text(model.profile.exposure.preset.title)
-                    .font(.headline)
-                Spacer()
-                Text(String(format: "%.0f %%", model.profile.exposure.exposedBodyPercentage))
-                    .font(.headline.monospacedDigit())
-                    .foregroundStyle(Theme.vitaminD)
-                Text("de peau")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            // Deux chiffres, et non un. La peau nue seule ne décide de rien :
+            // c'est la surface équivalente — nue plus couverte, celle-ci
+            // comptée à hauteur de ce que l'étoffe laisse passer — qui entre
+            // dans le calcul. N'afficher que le premier laissait croire que
+            // changer d'étoffe ne changeait rien, alors que sous des manches
+            // longues cela double la synthèse.
+            HStack(alignment: .top, spacing: 0) {
+                exposureFigure(
+                    value: model.profile.exposure.exposedBodyPercentage / 100,
+                    label: "peau nue",
+                    tint: .secondary)
+                Image(systemName: "plus")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 22)
+                    .padding(.top, 8)
+                exposureFigure(
+                    value: model.profile.exposure.effectiveExposedFraction
+                        - model.profile.exposure.exposedBodyFraction,
+                    label: "par l'étoffe",
+                    tint: .secondary)
+                Image(systemName: "equal")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 22)
+                    .padding(.top, 8)
+                exposureFigure(
+                    value: model.profile.exposure.effectiveExposedFraction,
+                    label: "surface utile",
+                    tint: Theme.vitaminD)
             }
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(quickPresets) { preset in
-                        presetChip(preset)
-                    }
-                }
-                .padding(.vertical, 2)
+            GoldRule()
+
+            chipRow(title: "Vêtements") {
+                ForEach(quickPresets) { preset in presetChip(preset) }
+            }
+
+            // L'étoffe était derrière un bouton nommé « Détails et protection »,
+            // c'est-à-dire nulle part : personne n'ouvre un réglage pour un
+            // choix dont il ignore l'existence. Elle prend donc la même forme
+            // que la tenue — une rangée qu'on voit et qu'on touche.
+            chipRow(title: "Étoffe") {
+                ForEach(Fabric.allCases) { fabric in fabricChip(fabric) }
             }
 
             HStack(spacing: 10) {
-                Label(model.profile.exposure.fabric.title, systemImage: "square.grid.3x3")
                 if model.profile.exposure.sunscreenSPF > 1 {
                     Label("IP \(model.profile.exposure.sunscreenSPF)", systemImage: "drop.fill")
                 }
@@ -314,13 +338,77 @@ struct TodayView: View {
                     Text("Chapeau")
                 }
                 Spacer()
-                Button("Étoffe et protection") { showsClothing = true }
+                Button("Crème, chapeau, régions") { showsClothing = true }
                     .font(.caption.weight(.medium))
             }
             .font(.caption)
             .foregroundStyle(.secondary)
             .lineLimit(1)
         }
+    }
+
+    private func exposureFigure(value: Double, label: String, tint: Color) -> some View {
+        VStack(spacing: 1) {
+            Text(Format.percent(value))
+                .font(.title3.weight(.semibold).monospacedDigit())
+                .foregroundStyle(tint)
+                .contentTransition(.numericText())
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func chipRow<Content: View>(title: String,
+                                        @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title.uppercased())
+                .font(.caption2.weight(.semibold))
+                .kerning(0.6)
+                .foregroundStyle(.secondary)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) { content() }
+                    .padding(.vertical, 2)
+            }
+        }
+    }
+
+    /// Pastille d'étoffe. L'UPF y figure parce que c'est le seul chiffre qui
+    /// permette de se reconnaître : personne ne sait ce que « laisse passer un
+    /// vingtième » veut dire, mais l'étiquette d'un vêtement de sport porte un
+    /// UPF, et un t-shirt blanc d'été se situe entre 3 et 7.
+    private func fabricChip(_ fabric: Fabric) -> some View {
+        let isSelected = model.profile.exposure.fabric == fabric
+
+        return Button {
+            var exposure = model.profile.exposure
+            exposure.fabric = fabric
+            model.updateSessionExposure(exposure)
+        } label: {
+            VStack(spacing: 3) {
+                Text(fabric.title)
+                    .font(.caption2)
+                    .lineLimit(2, reservesSpace: true)
+                    .minimumScaleFactor(0.85)
+                    .multilineTextAlignment(.center)
+                Text("UPF \(fabric.upf)")
+                    .font(.caption2.monospacedDigit().weight(.medium))
+                    .foregroundStyle(isSelected ? Theme.vitaminD : .tertiary)
+            }
+            .frame(width: 92)
+            .padding(.vertical, 8)
+            .foregroundStyle(isSelected ? Theme.vitaminD : .secondary)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isSelected
+                          ? Theme.vitaminD.opacity(0.14)
+                          : Color.secondary.opacity(0.10))
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     /// Les tenues courantes, dans l'ordre du plus couvert au moins couvert. La

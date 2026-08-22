@@ -15,6 +15,7 @@ struct CircadianView: View {
                 if model.profile.wantsPhaseShift { shiftCard }
                 eveningCard
                 routineLink
+                lightLink
                 toolsLink
                 settings(model: model)
                 caveat
@@ -28,6 +29,30 @@ struct CircadianView: View {
     }
 
     // MARK: - Sections
+
+    /// L'hiver pousse à chercher des lampes, et le commerce en vend beaucoup en
+    /// laissant croire qu'elles remplacent le Soleil. Le lien est dans cet
+    /// onglet-ci parce qu'il s'agit d'horloge interne et d'humeur, pas de
+    /// vitamine D — ce que l'écran d'arrivée dit dès sa première ligne.
+    private var lightLink: some View {
+        Card(title: "Lumière artificielle", systemImage: "lightbulb.max") {
+            Text("Luminothérapie, lumière rouge, proche infrarouge : trois "
+                 + "choses différentes que le commerce vend ensemble. Aucune ne "
+                 + "produit de vitamine D — mais l'une d'elles a de vraies "
+                 + "preuves contre l'hiver.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            NavigationLink {
+                LightTherapyView()
+            } label: {
+                Label("Voir les trois, et leurs minuteurs", systemImage: "timer")
+                    .font(.subheadline.weight(.medium))
+            }
+        }
+    }
+
 
     private var preamble: some View {
         Card {
