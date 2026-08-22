@@ -396,7 +396,13 @@ struct TodayView: View {
                     .multilineTextAlignment(.center)
                 Text("UPF \(fabric.upf)")
                     .font(.caption2.monospacedDigit().weight(.medium))
-                    .foregroundStyle(isSelected ? Theme.vitaminD : .tertiary)
+                    // `Color.secondary` existe, `Color.tertiary` non : le
+                    // tertiaire est un `HierarchicalShapeStyle`, qui ne se mêle
+                    // pas à une `Color` dans une ternaire. D'où l'opacité, qui
+                    // donne le même gris atténué en restant une couleur.
+                    .foregroundStyle(isSelected
+                                     ? Theme.vitaminD
+                                     : Color.secondary.opacity(0.65))
             }
             .frame(width: 92)
             .padding(.vertical, 8)
