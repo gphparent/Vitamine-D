@@ -5,6 +5,7 @@ struct TodayView: View {
     @Environment(AppModel.self) private var model
     @State private var showsLocationPicker = false
     @State private var showsClothing = false
+    @State private var showsAllNotices = false
 
     var body: some View {
         NavigationStack {
@@ -15,21 +16,28 @@ struct TodayView: View {
                     } else {
                         ScreenTitle(title: "Vitamine D", subtitle: headerSubtitle)
                             .padding(.bottom, 2)
-                        statusCard
-                        // La tenue passe au-dessus de tout ce qui varie avec
-                        // elle. Les avertissements apparaissent et disparaissent
+                        // Le décompte d'abord : c'est lui qui décide d'une
+                        // sortie. Il ne dépend que de la hauteur du Soleil, et
+                        // ne bouge donc pas quand on change de tenue.
+                        decisionCard
+                        // La tenue au-dessus de tout ce qui varie avec elle.
+                        // Les options de sortie et les avertissements changent
                         // selon les vêtements choisis : les laisser plus haut
-                        // faisait fuir la rangée de pastilles sous le doigt au
-                        // moment même où l'on tapait dessus.
+                        // ferait fuir la rangée de pastilles sous le doigt au
+                        // moment même où l'on tape dessus.
                         clothingCard
-                        notices
                         // Puis la seule décision à prendre : sortir maintenant,
                         // ou attendre. Elle vient avant tout ce qui l'explique.
                         OutingSection()
+                        notices
+                        // L'instant présent : jauge, météo, comptes du jour.
+                        // Tout cela explique la décision, et vient après elle.
+                        nowCard
                         if let plan = model.plan {
                             Card { DayChart(plan: plan, now: model.now) }
                             dayFacts(plan)
                         }
+                        yearCard
                         explanation
                         MedicalNotice()
                     }
@@ -42,12 +50,12 @@ struct TodayView: View {
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                // Le lieu reste une pastille flottante dans la barre, et mène
-                // à l'année entière : c'est là que se voit l'hiver vitaminique,
-                // qu'aucune vue quotidienne ne peut montrer.
+                // Le lieu reste une pastille flottante dans la barre, et fait
+                // ce qu'une pastille de lieu laisse attendre : changer de lieu.
+                // L'année entière, elle, a sa carte plus bas dans l'écran.
                 ToolbarItem(placement: .topBarLeading) {
-                    NavigationLink {
-                        YearView()
+                    Button {
+                        showsLocationPicker = true
                     } label: {
                         Label(model.location?.name ?? "Lieu",
                               systemImage: model.location?.isManual == true ? "mappin" : "location.fill")
@@ -109,10 +117,26 @@ struct TodayView: View {
         }
     }
 
-    @ViewBuilder
-    private var notices: some View {
+    /// Une remarque de l'écran principal, dans l'ordre où elles se disputent
+    /// la place.
+    private struct Notice: Identifiable {
+        let id: String
+        let kind: NoticeBanner.Kind
+        let title: String
+        let message: String
+        var isCompact = false
+    }
+
+    /// Les remarques qui s'appliquent en ce moment, de la plus lourde à la
+    /// plus légère. Seule la première s'affiche en entier : trois bannières
+    /// de six lignes chacune repoussaient tout le reste hors de l'écran, et
+    /// c'était le cas ordinaire d'un matin d'automne.
+    private var noticeItems: [Notice] {
+        var items: [Notice] = []
+
         if let plan = model.plan, plan.isVitaminDWinter {
-            NoticeBanner(
+            items.append(Notice(
+                id: "winter",
                 kind: .warning,
                 title: "Hiver vitaminique",
                 message: "Le Soleil culmine à \(Format.degrees(plan.peakElevation)) aujourd'hui, "
@@ -120,7 +144,7 @@ struct TodayView: View {
                     + "Le trajet du rayonnement dans l'atmosphère est si long que l'ozone "
                     + "absorbe la quasi-totalité des UVB : aucune durée d'exposition ne "
                     + "produira de vitamine D. Seule l'alimentation ou un supplément peut "
-                    + "prendre le relais.")
+                    + "prendre le relais."))
         }
 
         // La comparaison porte sur ce que la journée permet, et non sur le
@@ -128,13 +152,14 @@ struct TodayView: View {
         // objectif « sous le plafond » peut rester parfaitement hors de portée.
         if let plan = model.plan, !plan.isVitaminDWinter,
            plan.attainableIU > 0, model.profile.dailyGoalIU > plan.attainableIU {
-            NoticeBanner(
+            items.append(Notice(
+                id: "goal",
                 kind: .info,
                 title: "Objectif hors de portée aujourd'hui",
                 message: "Avec \(Int(model.profile.exposure.exposedBodyPercentage)) % de peau "
                     + "découverte, la journée permet au mieux \(Format.iu(plan.attainableIU)) — "
                     + "au-delà, la peau rougirait avant que la synthèse ne suive. Découvrez "
-                    + "davantage de peau, ou acceptez de compléter par l'alimentation.")
+                    + "davantage de peau, ou acceptez de compléter par l'alimentation."))
         }
 
         // Sans cette explication, un rendement à 60 % sur une peau qui n'a rien
@@ -142,7 +167,8 @@ struct TodayView: View {
         // date de la sortie, une charge héritée de la veille passe pour un bogue
         // les matins où l'on n'est pas encore sorti.
         if model.restingMarginalYield < 0.85, model.plan?.isVitaminDWinter != true {
-            NoticeBanner(
+            items.append(Notice(
+                id: "loaded",
                 kind: .info,
                 title: "Peau encore chargée",
                 message: lastOutingClause
@@ -152,31 +178,75 @@ struct TodayView: View {
                     + "prévitamine D3 formée dans la peau met des heures à en repartir, "
                     + "et une nuit n'en dissipe que la moitié. Une nouvelle sortie "
                     + "coûterait autant de capital cutané pour nettement moins de "
-                    + "vitamine D.")
+                    + "vitamine D."))
         }
 
         // L'appareil a vu du plein jour que l'application n'a pas compté : c'est
-        // du capital cutané dépensé hors de ses registres.
+        // du capital cutané dépensé hors de ses registres. Une ligne suffit.
         if model.untrackedDaylightMinutes >= 20 {
-            NoticeBanner(
+            items.append(Notice(
+                id: "untracked",
                 kind: .info,
-                title: "Du soleil non comptabilisé",
-                message: "Votre appareil a mesuré "
-                    + "\(Int(model.untrackedDaylightMinutes.rounded())) minutes de plein "
-                    + "jour que l'application n'a pas enregistrées. Le capital cutané "
-                    + "affiché est donc sous-estimé. Ces minutes ne sont pas converties "
-                    + "en dose : l'appareil ne sait ni votre tenue, ni si vous étiez à "
-                    + "l'ombre.")
+                title: "Soleil non comptabilisé",
+                message: "\(Int(model.untrackedDaylightMinutes.rounded())) min de plein "
+                    + "jour mesurées par l'appareil sans être enregistrées : le capital "
+                    + "cutané affiché est sous-estimé.",
+                isCompact: true))
         }
 
         if model.snapshot?.isModelled == true {
-            NoticeBanner(
+            items.append(Notice(
+                id: "modelled",
                 kind: .info,
-                title: "Données modélisées",
-                message: "Le service météo est injoignable. Les heures et hauteurs solaires "
-                    + "restent exactes, mais l'indice UV est calculé pour un ciel dégagé : "
-                    + "les valeurs réelles seront plus basses s'il y a des nuages.")
+                title: "Météo injoignable",
+                message: "indice UV calculé pour un ciel dégagé, donc surestimé "
+                    + "s'il y a des nuages.",
+                isCompact: true))
         }
+
+        return items
+    }
+
+    /// La première remarque en entier, les autres derrière un bouton.
+    @ViewBuilder
+    private var notices: some View {
+        let items = noticeItems
+
+        if let first = items.first {
+            banner(first)
+
+            let rest = Array(items.dropFirst())
+            if !rest.isEmpty {
+                if showsAllNotices {
+                    ForEach(rest) { banner($0) }
+                }
+
+                Button {
+                    withAnimation(.snappy) { showsAllNotices.toggle() }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: showsAllNotices ? "chevron.up" : "chevron.down")
+                            .font(.caption2)
+                        Text(showsAllNotices
+                             ? "Masquer"
+                             : (rest.count == 1
+                                ? "Une autre remarque"
+                                : "\(rest.count) autres remarques"))
+                            .font(.caption.weight(.medium))
+                    }
+                    .foregroundStyle(Theme.onSky.opacity(0.85))
+                    .padding(.horizontal, 4)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func banner(_ notice: Notice) -> some View {
+        NoticeBanner(kind: notice.kind,
+                     title: notice.title,
+                     message: notice.message,
+                     isCompact: notice.isCompact)
     }
 
     /// Situe dans le temps la sortie qui a laissé la charge, et termine par une
@@ -196,15 +266,17 @@ struct TodayView: View {
             + "\(Format.shortDate(end, in: model.calendar.timeZone)), "
     }
 
-    private var statusCard: some View {
-        Card {
-            // Le décompte d'abord : c'est lui qui décide d'une sortie. La jauge
-            // et les tuiles qui suivent disent l'instant présent.
-            if let plan = model.plan {
-                OptimalWindowCountdown(plan: plan, now: model.now)
-                GoldRule()
-            }
+    /// Le décompte, seul dans sa carte : c'est le chiffre qui commande.
+    @ViewBuilder
+    private var decisionCard: some View {
+        if let plan = model.plan {
+            Card { OptimalWindowCountdown(plan: plan, now: model.now) }
+        }
+    }
 
+    /// L'instant présent : jauge, météo, débit, et les deux comptes du jour.
+    private var nowCard: some View {
+        Card(title: "Maintenant", systemImage: "sun.max") {
             HStack(alignment: .top, spacing: 18) {
                 UVGauge(uvIndex: model.currentConditions?.uvIndex ?? 0,
                         clearSkyIndex: model.currentConditions?.uvIndexClearSky ?? 0,
@@ -214,8 +286,8 @@ struct TodayView: View {
                     // Deux lignes réservées : « Rendement optimal » tient sur
                     // une ligne, « Soleil trop bas pour la vitamine D » sur
                     // deux, et le passage de l'un à l'autre — qu'un simple
-                    // changement de tenue peut provoquer — ne doit pas
-                    // déplacer la carte de la tenue, juste en dessous.
+                    // changement de tenue peut provoquer — ne doit pas faire
+                    // sauter la page.
                     Text(statusHeadline)
                         .font(.headline)
                         .foregroundStyle(statusTint)
@@ -482,6 +554,57 @@ struct TodayView: View {
                 }
             }
         }
+    }
+
+    /// L'année entière, en une carte qui mène à la courbe.
+    ///
+    /// La vue quotidienne ne peut pas montrer l'hiver vitaminique : c'est un
+    /// fait qui n'existe qu'à l'échelle de l'année. La carte en donne le
+    /// verdict en une ligne, et la page derrière le dessine.
+    @ViewBuilder
+    private var yearCard: some View {
+        if let outlook = model.yearOutlook {
+            NavigationLink {
+                YearView()
+            } label: {
+                Card(title: "L'année", systemImage: "calendar") {
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(yearHeadline(outlook))
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(.primary)
+                            Text(yearDetail(outlook))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 8)
+                        Image(systemName: "chevron.right")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func yearHeadline(_ outlook: YearOutlook) -> String {
+        let place = model.location?.name ?? "ici"
+        guard let winter = outlook.winter else {
+            return "À \(place), la synthèse est possible toute l'année"
+        }
+        let days = Int((winter.duration / 86_400).rounded())
+        return "À \(place), \(days) jours par an sans vitamine D"
+    }
+
+    private func yearDetail(_ outlook: YearOutlook) -> String {
+        guard let winter = outlook.winter else {
+            return "Le Soleil ne descend jamais sous le seuil utile."
+        }
+        let zone = model.calendar.timeZone
+        let start = Format.shortDate(winter.start, in: zone)
+        let end = Format.shortDate(winter.end.addingTimeInterval(-1), in: zone)
+        return "Hiver vitaminique du \(start) au \(end). Voir la courbe de l'année."
     }
 
     private var explanation: some View {

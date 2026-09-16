@@ -352,6 +352,9 @@ struct NoticeBanner: View {
     let kind: Kind
     let title: String
     let message: String
+    /// Une seule ligne de texte, pour une remarque d'information qui ne
+    /// mérite pas une bannière entière.
+    var isCompact = false
 
     private var tint: Color {
         switch kind {
@@ -370,17 +373,32 @@ struct NoticeBanner: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: symbol)
-                .foregroundStyle(tint)
-                .font(.title3)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title).font(.subheadline.weight(.semibold))
-                Text(message).font(.footnote).foregroundStyle(.secondary)
+        Group {
+            if isCompact {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(systemName: symbol)
+                        .foregroundStyle(tint)
+                        .font(.footnote)
+                    (Text(title).fontWeight(.semibold) + Text(" · " + message))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(10)
+            } else {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: symbol)
+                        .foregroundStyle(tint)
+                        .font(.title3)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(title).font(.subheadline.weight(.semibold))
+                        Text(message).font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+                .padding(14)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
         // Fond de carte, et non une simple teinte : posé sur un ciel de nuit,
         // un aplat à 10 % laisserait le texte illisible.
         .background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -388,6 +406,7 @@ struct NoticeBanner: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(tint.opacity(0.45), lineWidth: 1)
         )
+        .accessibilityElement(children: .combine)
     }
 }
 

@@ -4,10 +4,9 @@ import SwiftUI
 struct CircadianView: View {
 
     @Environment(AppModel.self) private var model
+    @State private var showsSettings = false
 
     var body: some View {
-        @Bindable var model = model
-
         ScrollView {
             VStack(spacing: 16) {
                 preamble
@@ -15,9 +14,7 @@ struct CircadianView: View {
                 if model.profile.wantsPhaseShift { shiftCard }
                 eveningCard
                 routineLink
-                lightLink
-                toolsLink
-                settings(model: model)
+                lampsCard
                 caveat
             }
             .padding(16)
@@ -26,31 +23,86 @@ struct CircadianView: View {
                 solarElevation: model.solarPosition?.elevation ?? -90,
                 cloudCover: model.currentConditions?.cloudCover ?? 0))
         .navigationTitle("Sommeil")
+        .toolbar {
+            // Lever habituel, lever visé, durée de sommeil : ces réglages
+            // conditionnent tout l'écran. Ils étaient au bas d'une page de
+            // lecture, où personne ne les cherchait ; l'engrenage est
+            // l'endroit où l'on cherche un réglage.
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showsSettings = true
+                } label: {
+                    Label("Réglages du sommeil", systemImage: "gearshape")
+                }
+            }
+        }
+        .sheet(isPresented: $showsSettings) { CircadianSettingsView() }
     }
 
     // MARK: - Sections
 
+    /// Les lampes et les outils, en une carte et deux lignes.
+    ///
     /// L'hiver pousse à chercher des lampes, et le commerce en vend beaucoup en
-    /// laissant croire qu'elles remplacent le Soleil. Le lien est dans cet
+    /// laissant croire qu'elles remplacent le Soleil. La carte est dans cet
     /// onglet-ci parce qu'il s'agit d'horloge interne et d'humeur, pas de
-    /// vitamine D — ce que l'écran d'arrivée dit dès sa première ligne.
-    private var lightLink: some View {
-        Card(title: "Lumière artificielle", systemImage: "lightbulb.max") {
-            Text("Luminothérapie, lumière rouge, proche infrarouge : trois "
-                 + "choses différentes que le commerce vend ensemble. Aucune ne "
-                 + "produit de vitamine D — mais l'une d'elles a de vraies "
-                 + "preuves contre l'hiver.")
+    /// vitamine D. Deux cartes se partageaient ce sujet et se recouvraient :
+    /// la luminothérapie figurait dans les deux.
+    private var lampsCard: some View {
+        Card(title: "Lampes et outils", systemImage: "lamp.desk") {
+            Text("Aucune lampe ne produit de vitamine D. Mais contre l'hiver, "
+                 + "l'une d'elles a de vraies preuves, et d'autres outils "
+                 + "aident à caler l'horloge.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            NavigationLink {
+            GoldRule()
+
+            linkRow("Luminothérapie, rouge, infrarouge",
+                    detail: "Ce que fait chacune, avec un minuteur",
+                    systemImage: "timer") {
                 LightTherapyView()
-            } label: {
-                Label("Voir les trois, et leurs minuteurs", systemImage: "timer")
-                    .font(.subheadline.weight(.medium))
+            }
+
+            linkRow("Lampes, simulateurs d'aube, verres filtrants",
+                    detail: "Ce que vaut chacun, et ce que la preuve dit vraiment",
+                    systemImage: "lightbulb.max") {
+                SleepToolsView()
             }
         }
+    }
+
+    /// Une ligne cliquable dans une carte : intitulé, détail, chevron.
+    private func linkRow<Destination: View>(
+        _ title: String,
+        detail: String,
+        systemImage: String,
+        @ViewBuilder destination: @escaping () -> Destination) -> some View {
+        NavigationLink {
+            destination()
+        } label: {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Image(systemName: systemImage)
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.vitaminD)
+                    .frame(width: 22)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.primary)
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
     }
 
 
@@ -125,6 +177,8 @@ struct CircadianView: View {
                 Text("Le suivi de la lumière matinale est désactivé.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                Button("Activer dans les réglages") { showsSettings = true }
+                    .font(.footnote.weight(.medium))
             }
         } else {
             Card {
@@ -201,29 +255,6 @@ struct CircadianView: View {
         }
     }
 
-    private func settings(model: AppModel) -> some View {
-        @Bindable var model = model
-
-        return Card(title: "Réglages", systemImage: "slider.horizontal.3") {
-            Toggle("Suivre la lumière du matin", isOn: $model.profile.tracksCircadianLight)
-
-            if model.profile.tracksCircadianLight {
-                GoldRule()
-                timePicker("Lever habituel", minute: $model.profile.wakeMinuteOfDay)
-                timePicker("Lever visé", minute: $model.profile.targetWakeMinuteOfDay)
-
-                HStack {
-                    Text("Sommeil souhaité")
-                    Spacer()
-                    Text(String(format: "%.1f h", model.profile.sleepHours))
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                }
-                Slider(value: $model.profile.sleepHours, in: 5...10, step: 0.5)
-            }
-        }
-    }
-
     /// Renvoi vers la routine programmable.
     ///
     /// Placé avant le catalogue d'outils, et c'est délibéré : ce qui change une
@@ -259,35 +290,6 @@ struct CircadianView: View {
         case 1:  return "Un rappel actif"
         default: return "\(count) rappels actifs"
         }
-    }
-
-    /// Renvoi vers le catalogue des outils.
-    ///
-    /// Séparé de la planification quotidienne : ce qui suit relève du choix
-    /// d'équipement, pas de la journée en cours, et mélanger les deux ferait
-    /// d'une page de conseils une vitrine.
-    private var toolsLink: some View {
-        NavigationLink {
-            SleepToolsView()
-        } label: {
-            Card(title: "Les outils", systemImage: "lamp.desk") {
-                HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Lampes, simulateurs d'aube, verres filtrants")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.primary)
-                        Text("Ce que vaut chacun, et ce que la preuve dit vraiment")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 8)
-                    Image(systemName: "chevron.right")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .buttonStyle(.plain)
     }
 
     private var caveat: some View {
@@ -337,6 +339,70 @@ struct CircadianView: View {
         case .moderate:         return Color(red: 0.95, green: 0.72, blue: 0.20)
         case .weak:             return .orange
         case .insufficient:     return .secondary
+        }
+    }
+
+}
+
+/// Les réglages de l'horloge, en feuille.
+///
+/// Lever habituel, lever visé et durée de sommeil déplacent d'un coup la
+/// fenêtre du matin, l'heure de pénombre et les neuf rappels de la routine.
+/// Ils vivaient au bas de l'onglet, après huit cartes de lecture ; la routine
+/// renvoyait même « aux réglages de l'onglet Sommeil », sans dire où.
+struct CircadianSettingsView: View {
+
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        @Bindable var model = model
+
+        NavigationStack {
+            Form {
+                Section {
+                    Toggle("Suivre la lumière du matin", isOn: $model.profile.tracksCircadianLight)
+                } footer: {
+                    Text("Calcule chaque jour la fenêtre de lumière du matin et "
+                         + "l'heure à laquelle baisser les lumières le soir.")
+                }
+
+                if model.profile.tracksCircadianLight {
+                    Section {
+                        timePicker("Lever habituel", minute: $model.profile.wakeMinuteOfDay)
+                        timePicker("Lever visé", minute: $model.profile.targetWakeMinuteOfDay)
+                    } header: {
+                        Text("Lever")
+                    } footer: {
+                        Text("Un lever visé différent du lever habituel déclenche un "
+                             + "plan de déplacement progressif, d'au plus une heure "
+                             + "par jour.")
+                    }
+
+                    Section {
+                        HStack {
+                            Text("Sommeil souhaité")
+                            Spacer()
+                            Text(String(format: "%.1f h", model.profile.sleepHours))
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                        Slider(value: $model.profile.sleepHours, in: 5...10, step: 0.5)
+                    } header: {
+                        Text("Nuit")
+                    } footer: {
+                        Text("L'heure de coucher visée et les rappels de la routine "
+                             + "se déduisent du lever visé et de cette durée.")
+                    }
+                }
+            }
+            .navigationTitle("Sommeil")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Terminé") { dismiss() }
+                }
+            }
         }
     }
 

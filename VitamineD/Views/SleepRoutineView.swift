@@ -49,8 +49,8 @@ struct SleepRoutineView: View {
             GoldRule()
 
             Text("Les neuf heures ci-dessous se déduisent de ces deux-là. "
-                 + "Modifiez le lever visé ou la durée dans les réglages de "
-                 + "l'onglet Sommeil, et tout se replace.")
+                 + "Modifiez le lever visé ou la durée par l'engrenage en haut "
+                 + "de l'onglet Sommeil, et tout se replace.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

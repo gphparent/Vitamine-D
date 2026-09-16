@@ -222,6 +222,9 @@ Le moteur de calcul (`Engine/`, environ 3 400 lignes de Swift sans dépendance) 
 
 ## 10. Résumé des recommandations
 
+**Appliqué (commit suivant ce rapport).** Les cinq corrections prioritaires ont été faites : décompte seul en tête puis tenue puis section Sortir, avec la jauge et les comptes du jour dans une carte « Maintenant » en dessous ; une seule remarque affichée, les autres derrière un bouton, et les deux remarques d'information réduites à une ligne ; la pastille de lieu ouvre le sélecteur de lieu, et l'année a sa carte sur l'écran principal ; les réglages du sommeil sont derrière un engrenage dans l'onglet Sommeil, et la tenue n'est plus dans le profil ; les cartes « Vos réserves » et « Avant l'hiver » sont fusionnées en une seule courbe, de même que « Lumière artificielle » et « Les outils ».
+
+
 **Haute priorité, faible effort**
 
 - Remonter la section Sortir sous le décompte.
