@@ -1,42 +1,63 @@
 import SwiftUI
 
-/// Les nouvelles videos des chaines approuvees, moins ce qui a deja ete vu.
+/// Ce qui reste a voir : les nouvelles videos des chaines approuvees, puis les
+/// videos approuvees a l'unite, moins ce qui a deja ete vu.
 struct FilView: View {
 
     @Environment(AppModel.self) private var modele
     @State private var montrerVues = false
 
-    private var aVoir: [VideoDuFil] {
+    private var nouveautes: [VideoDuFil] {
         montrerVues ? modele.fil : modele.fil.filter { !modele.estVue($0.id) }
+    }
+
+    /// Les videos approuvees a l'unite, sans celles deja dans les nouveautes.
+    private var approuvees: [VideoApprouvee] {
+        let dansLeFil = Set(modele.fil.map(\.id))
+        return modele.videos
+            .filter { !dansLeFil.contains($0.id) && (montrerVues || !modele.estVue($0.id)) }
+            .sorted { ($0.approuveeLe, $1.titre) > ($1.approuveeLe, $0.titre) }
     }
 
     var body: some View {
         NavigationStack {
             Group {
-                if modele.chaines.isEmpty {
+                if modele.chaines.isEmpty && modele.videos.isEmpty {
                     ContentUnavailableView(
-                        "Aucune chaîne approuvée",
+                        "Rien d'approuvé pour l'instant",
                         systemImage: "checkmark.shield",
-                        description: Text("Colle le lien d'une chaîne dans l'onglet Demander : si le juge l'approuve, ses nouvelles vidéos arriveront ici."))
-                } else if modele.fil.isEmpty && modele.chargementFil {
+                        description: Text("Dans l'onglet Demander, colle un lien ou demande au juge de chercher : ce qu'il approuve arrivera ici."))
+                } else if modele.fil.isEmpty && modele.chargementFil && approuvees.isEmpty {
                     ProgressView()
-                } else if aVoir.isEmpty {
+                } else if nouveautes.isEmpty && approuvees.isEmpty {
                     ContentUnavailableView(
                         "Tout est vu",
                         systemImage: "checkmark.circle",
                         description: Text("Rien de nouveau à voir pour l'instant."))
                 } else {
-                    List(aVoir) { video in
-                        NavigationLink {
-                            LecteurView(videoID: video.id, titre: video.titre)
-                        } label: {
-                            LigneVideo(titre: video.titre, chaine: video.chaine, miniature: video.miniature,
-                                       date: video.publieeLe, vue: modele.estVue(video.id))
+                    List {
+                        if !nouveautes.isEmpty {
+                            Section("Nouveautés des chaînes") {
+                                ForEach(nouveautes) { video in
+                                    ligne(id: video.id, titre: video.titre, chaine: video.chaine,
+                                          miniature: video.miniature, date: video.publieeLe)
+                                }
+                            }
                         }
-                        .swipeActions { BoutonVue(id: video.id) }
+                        if !approuvees.isEmpty {
+                            Section("Vidéos approuvées (\(approuvees.count))") {
+                                ForEach(approuvees) { video in
+                                    ligne(id: video.id, titre: video.titre, chaine: video.chaine,
+                                          miniature: URL(string: "https://i.ytimg.com/vi/\(video.id)/mqdefault.jpg"))
+                                }
+                            }
+                        }
                     }
                     .listStyle(.plain)
-                    .refreshable { await modele.rafraichirFil() }
+                    .refreshable {
+                        await modele.synchroniser()
+                        await modele.rafraichirFil()
+                    }
                 }
             }
             .navigationTitle("À voir")
@@ -46,6 +67,15 @@ struct FilView: View {
                 }
             }
         }
+    }
+
+    private func ligne(id: String, titre: String, chaine: String, miniature: URL?, date: Date? = nil) -> some View {
+        NavigationLink {
+            LecteurView(videoID: id, titre: titre)
+        } label: {
+            LigneVideo(titre: titre, chaine: chaine, miniature: miniature, date: date, vue: modele.estVue(id))
+        }
+        .swipeActions { BoutonVue(id: id) }
     }
 }
 

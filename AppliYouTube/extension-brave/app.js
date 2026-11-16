@@ -316,18 +316,34 @@ function carteVideo({ id, titre, chaine, publieeLe }, listeID) {
 
 const aVoir = (videos) => (montrerVues ? videos : videos.filter((v) => !estVue(v.id)));
 
+// Ce qui reste a voir : les nouvelles videos des chaines approuvees, puis les
+// videos approuvees a l'unite qui n'y figurent pas deja.
 function rendreFil() {
-  const liste = $("#fil-liste");
-  if (etat.approbations.chaines.length === 0) {
-    liste.innerHTML = `<p class="vide">Aucune chaîne approuvée. Colle le lien d'une chaîne dans l'onglet Demander : si le juge l'approuve, ses nouvelles vidéos arriveront ici.</p>`;
+  const zone = $("#fil-liste");
+  const { chaines, videos } = etat.approbations;
+  if (chaines.length === 0 && videos.length === 0) {
+    zone.innerHTML = `<p class="vide">Rien d'approuvé pour l'instant. Dans l'onglet Demander, colle un lien ou demande au juge de chercher : ce qu'il approuve arrivera ici.</p>`;
     return;
   }
-  const videos = aVoir(fil);
-  if (videos.length === 0 && fil.length > 0) {
-    liste.innerHTML = `<p class="vide">Tout est vu. Rien de nouveau à voir pour l'instant.</p>`;
+  const nouveautes = aVoir(fil);
+  const dansLeFil = new Set(fil.map((v) => v.id));
+  const approuvees = aVoir(videos.filter((v) => !dansLeFil.has(v.id)))
+    .sort((a, b) => (a.approuveeLe === b.approuveeLe ? a.titre.localeCompare(b.titre, "fr") : a.approuveeLe < b.approuveeLe ? 1 : -1));
+  if (nouveautes.length === 0 && approuvees.length === 0) {
+    zone.innerHTML = `<p class="vide">Tout est vu. Rien de nouveau à voir pour l'instant.</p>`;
     return;
   }
-  liste.replaceChildren(...videos.map((v) => carteVideo(v)));
+  const section = (titre, cartes) => {
+    const s = document.createElement("div");
+    s.className = "section-fil";
+    s.innerHTML = `<h3></h3><div class="grille"></div>`;
+    s.querySelector("h3").textContent = titre;
+    s.querySelector(".grille").replaceChildren(...cartes);
+    return s;
+  };
+  zone.replaceChildren(
+    ...(nouveautes.length ? [section("Nouveautés des chaînes", nouveautes.map((v) => carteVideo(v)))] : []),
+    ...(approuvees.length ? [section(`Vidéos approuvées (${approuvees.length})`, approuvees.map((v) => carteVideo(v)))] : []));
 }
 
 function rendreConversation() {
