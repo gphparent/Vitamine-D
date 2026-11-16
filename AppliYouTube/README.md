@@ -70,7 +70,7 @@ settings → *Fine-grained tokens* → *Generate new token*, permission de compt
 
 Le projet Xcode utilise des groupes synchronisés : tout fichier ajouté dans
 `AppliYouTube/` ou `AppliYouTubeTests/` est compilé sans toucher au projet.
-`node --test extension-brave/tests/` éprouve l'extension.
+`node --test extension-brave/tests/*.test.js` éprouve l'extension.
 
 - `Tools/fabriquer-icone.py` régénère l'icône.
 - `Tools/tester-cle-asc.py` éprouve la clé App Store Connect avant l'envoi.

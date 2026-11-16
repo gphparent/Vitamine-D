@@ -37,7 +37,7 @@ jobs:
           cmp AppliYouTube/Resources/consignes.txt extension-brave/consignes.txt             || { echo "consignes.txt differe entre l'appli et l'extension."; exit 1; }
 
       - name: Eprouver l'extension
-        run: node --test extension-brave/tests/
+        run: node --test extension-brave/tests/*.test.js
 
       - name: Choisir un simulateur
         id: sim
