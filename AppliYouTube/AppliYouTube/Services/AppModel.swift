@@ -10,6 +10,10 @@ final class AppModel {
 
     private(set) var chaines: [Chaine] = []
     private(set) var videos: [VideoApprouvee] = []
+    private(set) var listes: [ListeApprouvee] = []
+    /// Ce qui a ete vu, par identifiant de video. Le fil et les listes s'en
+    /// servent pour ne montrer que ce qui reste a voir.
+    private(set) var vus: [String: Visionnement] = [:]
     private(set) var fil: [VideoDuFil] = []
     private(set) var echanges: [Echange] = []
     private(set) var enAttente = false
@@ -32,6 +36,8 @@ final class AppModel {
         videos = store.charger([VideoApprouvee].self, pour: .videos) ?? []
         echanges = store.charger([Echange].self, pour: .echanges) ?? []
         retraits = store.charger([Retrait].self, pour: .retraits) ?? []
+        listes = store.charger([ListeApprouvee].self, pour: .listes) ?? []
+        for v in store.charger([Visionnement].self, pour: .vus) ?? [] { vus[v.id] = v }
         gistID = store.charger(String.self, pour: .gistID)
         if let brut = store.chargerBrut(.messagesAPI),
            let liste = try? JSONSerialization.jsonObject(with: brut) as? [Any] {
@@ -53,12 +59,15 @@ final class AppModel {
             etatPartage = nil
             return
         }
-        let local = DocumentPartage(chaines: chaines, videos: videos, retraits: retraits)
+        let local = DocumentPartage(chaines: chaines, videos: videos, listes: listes,
+                                    retraits: retraits, vus: Array(vus.values))
         do {
             let (fusionne, id) = try await PartageGist(jeton: jeton).synchroniser(local, gistID: gistID)
             chaines = fusionne.chaines
             videos = fusionne.videos
+            listes = fusionne.listes
             retraits = fusionne.retraits
+            vus = Dictionary(fusionne.vus.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
             gistID = id
             etatPartage = "Synchronisé à \(Date.now.formatted(date: .omitted, time: .shortened))."
             enregistrer()
@@ -90,6 +99,24 @@ final class AppModel {
         fil = tout.sorted { ($0.publieeLe ?? .distantPast) > ($1.publieeLe ?? .distantPast) }
     }
 
+    // MARK: Visionnements
+
+    func estVue(_ id: String) -> Bool {
+        vus[id]?.vu ?? false
+    }
+
+    /// Appele par le lecteur (fin ou 90 % atteints) ou par le bouton manuel.
+    func marquer(_ id: String, vue: Bool) {
+        guard estVue(id) != vue else { return }
+        vus[id] = Visionnement(id: id, le: .now, vu: vue)
+        enregistrer()
+        Task { await synchroniser() }
+    }
+
+    func fiche(liste id: String) async throws -> FicheListe {
+        try await youtube.fiche(liste: id)
+    }
+
     // MARK: Juge
 
     func demander(_ texte: String) async {
@@ -108,23 +135,29 @@ final class AppModel {
         // l'utilisateur.
         var fichesVideo: [FicheVideo] = []
         var fichesChaine: [FicheChaine] = []
+        var fichesListe: [FicheListe] = []
         for id in AnalyseYouTube.identifiantsVideo(dans: texte).prefix(3) {
             if let fiche = try? await youtube.fiche(video: id) { fichesVideo.append(fiche) }
         }
         for adresse in AnalyseYouTube.adressesChaine(dans: texte).prefix(2) {
             if let fiche = try? await youtube.fiche(chaine: adresse) { fichesChaine.append(fiche) }
         }
+        for id in AnalyseYouTube.identifiantsListe(dans: texte).prefix(2) {
+            if let fiche = try? await youtube.fiche(liste: id) { fichesListe.append(fiche) }
+        }
 
         let nouveau: [String: Any] = [
             "role": "user",
-            "content": composer(texte, fichesVideo: fichesVideo, fichesChaine: fichesChaine),
+            "content": composer(texte, fichesVideo: fichesVideo, fichesChaine: fichesChaine,
+                                fichesListe: fichesListe),
         ]
 
         do {
             let decision = try await juge.juger(historique: messagesAPI, nouveau: nouveau)
             messagesAPI.append(nouveau)
             messagesAPI.append(["role": "assistant", "content": decision.contenuBrut] as [String: Any])
-            appliquer(decision, fichesVideo: fichesVideo, fichesChaine: fichesChaine)
+            appliquer(decision, fichesVideo: fichesVideo, fichesChaine: fichesChaine,
+                      fichesListe: fichesListe)
             ajouter(Echange(auteur: .juge, texte: decision.reponse, verdict: decision.verdict))
         } catch {
             // Rien n'est ajoute a l'historique de l'API : le tour echoue
@@ -140,7 +173,8 @@ final class AppModel {
         enregistrer()
     }
 
-    private func composer(_ texte: String, fichesVideo: [FicheVideo], fichesChaine: [FicheChaine]) -> String {
+    private func composer(_ texte: String, fichesVideo: [FicheVideo], fichesChaine: [FicheChaine],
+                          fichesListe: [FicheListe]) -> String {
         let encodeur = JSONEncoder()
         encodeur.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         func json<T: Encodable>(_ v: T) -> String {
@@ -150,19 +184,24 @@ final class AppModel {
         var parties = [texte]
         for fiche in fichesVideo { parties.append("<fiche_video>\(json(fiche))</fiche_video>") }
         for fiche in fichesChaine { parties.append("<fiche_chaine>\(json(fiche))</fiche_chaine>") }
-        if fichesVideo.isEmpty && fichesChaine.isEmpty
+        for fiche in fichesListe { parties.append("<fiche_liste>\(json(fiche))</fiche_liste>") }
+        if fichesVideo.isEmpty && fichesChaine.isEmpty && fichesListe.isEmpty
             && !(AnalyseYouTube.identifiantsVideo(dans: texte).isEmpty
-                 && AnalyseYouTube.adressesChaine(dans: texte).isEmpty) {
+                 && AnalyseYouTube.adressesChaine(dans: texte).isEmpty
+                 && AnalyseYouTube.identifiantsListe(dans: texte).isEmpty) {
             parties.append("<note>L'appli n'a pas pu lire le lien fourni.</note>")
         }
         let etat = "Chaînes approuvées : "
             + (chaines.isEmpty ? "aucune" : chaines.map(\.nom).joined(separator: ", "))
+            + ". Listes approuvées : "
+            + (listes.isEmpty ? "aucune" : listes.map(\.titre).joined(separator: ", "))
             + ". Vidéos approuvées à l'unité : \(videos.count)."
         parties.append("<etat>\(etat)</etat>")
         return parties.joined(separator: "\n\n")
     }
 
-    private func appliquer(_ decision: Juge.Decision, fichesVideo: [FicheVideo], fichesChaine: [FicheChaine]) {
+    private func appliquer(_ decision: Juge.Decision, fichesVideo: [FicheVideo], fichesChaine: [FicheChaine],
+                           fichesListe: [FicheListe]) {
         switch decision.verdict {
         case .approuveVideo:
             // L'identifiant doit sortir d'une fiche lue par l'appli a ce tour-ci.
@@ -179,6 +218,12 @@ final class AppModel {
             chaines.append(Chaine(id: decision.chaineID, nom: nom, approuveeLe: .now,
                                   raison: decision.reponse))
             Task { await synchroniser(); await rafraichirFil() }
+        case .approuveListe:
+            guard let fiche = fichesListe.first(where: { $0.id == decision.listeID }),
+                  !listes.contains(where: { $0.id == fiche.id }) else { return }
+            listes.insert(ListeApprouvee(id: fiche.id, titre: fiche.titre, chaine: fiche.chaine,
+                                         approuveeLe: .now, raison: decision.reponse), at: 0)
+            Task { await synchroniser() }
         case .refuse, .discussion:
             break
         }
@@ -201,6 +246,13 @@ final class AppModel {
         Task { await synchroniser() }
     }
 
+    func retirer(liste: ListeApprouvee) {
+        listes.removeAll { $0.id == liste.id }
+        retraits.append(Retrait(id: liste.id, le: .now))
+        enregistrer()
+        Task { await synchroniser() }
+    }
+
     // MARK: Persistance
 
     private func ajouter(_ echange: Echange) {
@@ -212,6 +264,8 @@ final class AppModel {
         store.enregistrer(videos, pour: .videos)
         store.enregistrer(echanges, pour: .echanges)
         store.enregistrer(retraits, pour: .retraits)
+        store.enregistrer(listes, pour: .listes)
+        store.enregistrer(Array(vus.values), pour: .vus)
         if let gistID { store.enregistrer(gistID, pour: .gistID) }
         if let brut = try? JSONSerialization.data(withJSONObject: messagesAPI) {
             store.enregistrerBrut(brut, pour: .messagesAPI)

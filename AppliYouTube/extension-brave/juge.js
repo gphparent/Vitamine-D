@@ -7,11 +7,12 @@ const SCHEMA = {
   type: "object",
   properties: {
     reponse: { type: "string", description: "Ce que tu réponds à l'utilisateur." },
-    verdict: { type: "string", enum: ["approuve_video", "approuve_chaine", "refuse", "discussion"] },
+    verdict: { type: "string", enum: ["approuve_video", "approuve_chaine", "approuve_liste", "refuse", "discussion"] },
     video_id: { type: "string" },
     chaine_id: { type: "string" },
+    liste_id: { type: "string" },
   },
-  required: ["reponse", "verdict", "video_id", "chaine_id"],
+  required: ["reponse", "verdict", "video_id", "chaine_id", "liste_id"],
   additionalProperties: false,
 };
 
@@ -62,6 +63,7 @@ export async function juger(cle, historique, nouveau) {
     verdict: sortie.verdict,
     videoID: sortie.video_id ?? "",
     chaineID: sortie.chaine_id ?? "",
+    listeID: sortie.liste_id ?? "",
     contenuBrut: json.content,
   };
 }

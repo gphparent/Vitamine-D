@@ -1,7 +1,8 @@
 // Approbations partagees entre l'iPhone et les ordis, par un Gist GitHub
 // secret. Meme format et meme fusion que AppliYouTube/Services/Partage.swift.
 //
-// Le document : { version, chaines: [...], videos: [...], retraits: [{id, le}] }.
+// Le document : { version, chaines, videos, listes, retraits: [{id, le}],
+// vus: [{id, le, vu}] }.
 // Un retrait est garde comme une pierre tombale : sans lui, un appareil qui
 // n'a pas encore vu le retrait remettrait l'element a la prochaine fusion.
 
@@ -9,7 +10,7 @@ const DESCRIPTION = "Appli YouTube — approbations partagées";
 const FICHIER = "approbations.json";
 
 export function documentVide() {
-  return { version: 1, chaines: [], videos: [], retraits: [] };
+  return { version: 1, chaines: [], videos: [], listes: [], retraits: [], vus: [] };
 }
 
 export function fusion(a, b) {
@@ -28,11 +29,20 @@ export function fusion(a, b) {
       .filter((e) => !(retraits.get(e.id)?.le >= e.approuveeLe))
       .sort((x, y) => (x.approuveeLe < y.approuveeLe ? 1 : -1));
   };
+  // Pour les visionnements, le dernier mot l'emporte : vu, remis a voir, revu.
+  const vus = new Map();
+  for (const v of [...(a.vus ?? []), ...(b.vus ?? [])]) {
+    const deja = vus.get(v.id);
+    if (!deja || deja.le < v.le) vus.set(v.id, v);
+  }
+  const parId = (x, y) => (x.id < y.id ? -1 : 1);
   return {
     version: 1,
     chaines: garder([...(a.chaines ?? []), ...(b.chaines ?? [])]),
     videos: garder([...(a.videos ?? []), ...(b.videos ?? [])]),
-    retraits: [...retraits.values()].sort((x, y) => (x.id < y.id ? -1 : 1)),
+    listes: garder([...(a.listes ?? []), ...(b.listes ?? [])]),
+    retraits: [...retraits.values()].sort(parId),
+    vus: [...vus.values()].sort(parId),
   };
 }
 

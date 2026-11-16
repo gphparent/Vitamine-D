@@ -14,6 +14,7 @@ struct Juge {
         let verdict: Verdict
         let videoID: String
         let chaineID: String
+        let listeID: String
         /// Le contenu brut de la reponse, a renvoyer tel quel au tour suivant.
         let contenuBrut: Any
     }
@@ -51,11 +52,12 @@ struct Juge {
         "properties": [
             "reponse": ["type": "string", "description": "Ce que tu réponds à l'utilisateur."],
             "verdict": ["type": "string",
-                        "enum": ["approuve_video", "approuve_chaine", "refuse", "discussion"]],
+                        "enum": ["approuve_video", "approuve_chaine", "approuve_liste", "refuse", "discussion"]],
             "video_id": ["type": "string"],
             "chaine_id": ["type": "string"],
+            "liste_id": ["type": "string"],
         ],
-        "required": ["reponse", "verdict", "video_id", "chaine_id"],
+        "required": ["reponse", "verdict", "video_id", "chaine_id", "liste_id"],
         "additionalProperties": false,
     ]
 
@@ -127,6 +129,7 @@ struct Juge {
             verdict: verdict,
             videoID: sortie["video_id"] as? String ?? "",
             chaineID: sortie["chaine_id"] as? String ?? "",
+            listeID: sortie["liste_id"] as? String ?? "",
             contenuBrut: contenu)
     }
 }

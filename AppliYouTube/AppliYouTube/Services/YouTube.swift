@@ -32,6 +32,16 @@ struct YouTubeService {
         return FicheVideo(id: id, titre: titre, chaine: json["author_name"] as? String ?? "")
     }
 
+    // MARK: Liste de lecture
+
+    func fiche(liste id: String) async throws -> FicheListe {
+        let page = try await telecharger("https://www.youtube.com/playlist?list=\(id)&hl=fr")
+        guard let fiche = AnalyseYouTube.ficheListe(depuisPage: page, id: id) else {
+            throw Erreur.introuvable
+        }
+        return fiche
+    }
+
     // MARK: Chaine
 
     func fiche(chaine adresse: String) async throws -> FicheChaine {
@@ -78,6 +88,16 @@ enum AnalyseYouTube {
         return correspondances(motif, dans: texte)
     }
 
+    /// Identifiants de liste de lecture presents dans un texte libre. Les
+    /// « Mix » (`RD...`) sont ecartes d'office : ce sont des suites de
+    /// recommandations sans fin, la spirale meme que l'appli doit eviter. Les
+    /// listes personnelles (a regarder plus tard, j'aime) n'ont pas de page
+    /// publique.
+    static func identifiantsListe(dans texte: String) -> [String] {
+        correspondances(#"youtube\.com/[^\s]*[?&]list=([A-Za-z0-9_-]{10,})"#, dans: texte)
+            .filter { !$0.hasPrefix("RD") }
+    }
+
     /// Adresses de chaine presentes dans un texte libre.
     static func adressesChaine(dans texte: String) -> [String] {
         let motif = #"(https?://(?:www\.|m\.)?youtube\.com/(?:@[\w.\-]+|channel/UC[\w-]{22}|c/[\w.\-]+|user/[\w.\-]+))"#
@@ -100,6 +120,49 @@ enum AnalyseYouTube {
             dureeSecondes: (details["lengthSeconds"] as? String).flatMap(Int.init),
             categorie: micro?["category"] as? String,
             motsCles: (details["keywords"] as? [String]).map { Array($0.prefix(20)) })
+    }
+
+    /// Les videos d'une liste, dans l'une ou l'autre des deux formes que
+    /// YouTube a employees : `lockupViewModel` (2025 et apres) ou
+    /// `playlistVideoRenderer`.
+    static func ficheListe(depuisPage page: String, id: String) -> FicheListe? {
+        guard let donnees = objetJSON(apres: "var ytInitialData = ", dans: page) else { return nil }
+        var videos: [FicheListe.Element] = []
+        parcourir(donnees) { cle, objet in
+            switch cle {
+            case "lockupViewModel":
+                guard objet["contentType"] as? String == "LOCKUP_CONTENT_TYPE_VIDEO",
+                      let vid = objet["contentId"] as? String,
+                      let titre = (((objet["metadata"] as? [String: Any])?["lockupMetadataViewModel"]
+                                    as? [String: Any])?["title"] as? [String: Any])?["content"] as? String
+                else { return }
+                videos.append(.init(id: vid, titre: titre))
+            case "playlistVideoRenderer":
+                guard let vid = objet["videoId"] as? String,
+                      let titre = (((objet["title"] as? [String: Any])?["runs"] as? [[String: Any]])?
+                                    .first?["text"]) as? String
+                else { return }
+                videos.append(.init(id: vid, titre: titre))
+            default: break
+            }
+        }
+        guard let titre = meta("og:title", dans: page), !videos.isEmpty else { return nil }
+        var chaine = correspondances(#""avatarStack".{0,600}?"text":\{"content":"([^"]+)""#, dans: page).first ?? ""
+        for prefixe in ["de ", "by "] where chaine.hasPrefix(prefixe) {
+            chaine.removeFirst(prefixe.count)
+        }
+        return FicheListe(id: id, titre: titre, chaine: chaine, videos: Array(videos.prefix(100)))
+    }
+
+    private static func parcourir(_ valeur: Any, _ visite: (String, [String: Any]) -> Void) {
+        if let dico = valeur as? [String: Any] {
+            for (cle, sous) in dico {
+                if let objet = sous as? [String: Any] { visite(cle, objet) }
+                parcourir(sous, visite)
+            }
+        } else if let liste = valeur as? [Any] {
+            for sous in liste { parcourir(sous, visite) }
+        }
     }
 
     static func identifiantChaine(depuisPage page: String) -> String? {

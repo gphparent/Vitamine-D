@@ -10,6 +10,8 @@ struct Store {
         case echanges = "echanges.v1"
         case messagesAPI = "messages.api.v1"
         case retraits = "retraits.v1"
+        case listes = "listes.v1"
+        case vus = "vus.v1"
         case gistID = "gist.id.v1"
     }
 

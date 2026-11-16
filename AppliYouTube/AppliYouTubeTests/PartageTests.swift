@@ -45,6 +45,23 @@ final class PartageTests: XCTestCase {
         XCTAssertTrue(texte.contains("\"2026-11-02T10:00:00.000Z\""))
     }
 
+    /// Un Gist ecrit avant l'arrivee des listes et des visionnements se relit
+    /// sans rien perdre.
+    func testDocumentAnterieurSansListesNiVus() throws {
+        let json = #"{"version":1,"chaines":[{"id":"UCa","nom":"A","approuveeLe":"2026-11-01T10:00:00.000Z","raison":""}],"videos":[],"retraits":[]}"#
+        let doc = try DocumentPartage.decodeur.decode(DocumentPartage.self, from: Data(json.utf8))
+        XCTAssertEqual(doc.chaines.count, 1)
+        XCTAssertTrue(doc.listes.isEmpty)
+        XCTAssertTrue(doc.vus.isEmpty)
+    }
+
+    func testLeDernierVisionnementLEmporte() {
+        let iphone = DocumentPartage(vus: [Visionnement(id: "v", le: date("2026-11-01T10:00:00.000Z"), vu: true)])
+        let ordi = DocumentPartage(vus: [Visionnement(id: "v", le: date("2026-11-02T10:00:00.000Z"), vu: false)])
+        XCTAssertEqual(DocumentPartage.fusion(iphone, ordi).vus.first?.vu, false)
+        XCTAssertEqual(DocumentPartage.fusion(ordi, iphone).vus.first?.vu, false)
+    }
+
     func testLesConsignesSontDansLePaquet() {
         XCTAssertTrue(Juge.consignes.contains("en français"))
     }

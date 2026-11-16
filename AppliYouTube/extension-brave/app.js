@@ -15,6 +15,8 @@ let etat = {
 };
 let fil = [];
 let enAttente = false;
+let montrerVues = false;
+let listeOuverte = null;      // { liste, fiche } quand une liste est affichee
 
 const $ = (s) => document.querySelector(s);
 const maintenant = () => new Date().toISOString();
@@ -23,6 +25,8 @@ const maintenant = () => new Date().toISOString();
 
 async function demarrer() {
   etat = { ...etat, ...(await chrome.storage.local.get(null)) };
+  // Un etat enregistre par une version anterieure n'a ni listes ni vus.
+  etat.approbations = fusion(etat.approbations, documentVide());
   for (const bouton of document.querySelectorAll("nav button")) {
     bouton.addEventListener("click", () => afficherOnglet(bouton.dataset.onglet));
   }
@@ -33,7 +37,16 @@ async function demarrer() {
   $("#nouvelle").addEventListener("click", () => nouvelleConversation());
   $("#fermer-lecteur").addEventListener("click", fermerLecteur);
   $("#lecteur").addEventListener("click", (e) => { if (e.target.id === "lecteur") fermerLecteur(); });
+  $("#basculer-vue").addEventListener("click", basculerVueEnCours);
   $("#rafraichir").addEventListener("click", () => rafraichirFil());
+  for (const case_ of document.querySelectorAll(".montrer-vues")) {
+    case_.addEventListener("change", () => {
+      montrerVues = case_.checked;
+      for (const autre of document.querySelectorAll(".montrer-vues")) autre.checked = montrerVues;
+      rendre();
+    });
+  }
+  window.addEventListener("message", ecouterLecteur);
   brancherReglages();
   rendre();
   await synchroniserSiPossible();
@@ -66,6 +79,18 @@ async function synchroniserSiPossible() {
   }
 }
 
+// MARK: Visionnements
+
+const estVue = (id) => etat.approbations.vus.find((v) => v.id === id)?.vu ?? false;
+
+async function marquer(id, vue) {
+  if (estVue(id) === vue) return;
+  etat.approbations = fusion(etat.approbations, { vus: [{ id, le: maintenant(), vu: vue }] });
+  await enregistrer();
+  rendre();
+  await synchroniserSiPossible();
+}
+
 // MARK: Fil
 
 async function rafraichirFil() {
@@ -95,14 +120,18 @@ async function envoyer() {
   // sur des faits, jamais sur la seule parole de l'utilisateur.
   const idsVideo = youtube.identifiantsVideo(texte).slice(0, 3);
   const adresses = youtube.adressesChaine(texte).slice(0, 2);
-  const fichesVideo = (await Promise.all(idsVideo.map((id) => youtube.ficheVideo(id).catch(() => null)))).filter(Boolean);
-  const fichesChaine = (await Promise.all(adresses.map((a) => youtube.ficheChaine(a).catch(() => null)))).filter(Boolean);
+  const idsListe = youtube.identifiantsListe(texte).slice(0, 2);
+  const lire = (ids, f) => Promise.all(ids.map((x) => f(x).catch(() => null))).then((l) => l.filter(Boolean));
+  const [fichesVideo, fichesChaine, fichesListe] = await Promise.all([
+    lire(idsVideo, youtube.ficheVideo), lire(adresses, youtube.ficheChaine), lire(idsListe, youtube.ficheListe)]);
 
-  const nouveau = { role: "user", content: composer(texte, fichesVideo, fichesChaine, idsVideo.length + adresses.length) };
+  const fiches = { fichesVideo, fichesChaine, fichesListe };
+  const liensFournis = idsVideo.length + adresses.length + idsListe.length;
+  const nouveau = { role: "user", content: composer(texte, fiches, liensFournis) };
   try {
     const decision = await juger(etat.cleAnthropic, etat.messagesAPI, nouveau);
     etat.messagesAPI.push(nouveau, { role: "assistant", content: decision.contenuBrut });
-    const change = appliquer(decision, fichesVideo, fichesChaine);
+    const change = appliquer(decision, fiches);
     etat.echanges.push({ auteur: "juge", texte: decision.reponse, verdict: decision.verdict, date: maintenant() });
     await enregistrer();
     if (change) { await synchroniserSiPossible(); await rafraichirFil(); }
@@ -115,35 +144,42 @@ async function envoyer() {
   rendre();
 }
 
-function composer(texte, fichesVideo, fichesChaine, liensFournis) {
+function composer(texte, { fichesVideo, fichesChaine, fichesListe }, liensFournis) {
   const parties = [texte];
   for (const f of fichesVideo) parties.push(`<fiche_video>${JSON.stringify(f)}</fiche_video>`);
+  for (const f of fichesListe) parties.push(`<fiche_liste>${JSON.stringify(f)}</fiche_liste>`);
   for (const f of fichesChaine) parties.push(`<fiche_chaine>${JSON.stringify(f)}</fiche_chaine>`);
-  if (liensFournis > 0 && fichesVideo.length + fichesChaine.length === 0) {
+  if (liensFournis > 0 && fichesVideo.length + fichesChaine.length + fichesListe.length === 0) {
     parties.push("<note>L'appli n'a pas pu lire le lien fourni.</note>");
   }
-  const { chaines, videos } = etat.approbations;
-  parties.push(`<etat>Chaînes approuvées : ${chaines.length ? chaines.map((c) => c.nom).join(", ") : "aucune"}. Vidéos approuvées à l'unité : ${videos.length}.</etat>`);
+  const { chaines, listes, videos } = etat.approbations;
+  const noms = (l, f) => (l.length ? l.map(f).join(", ") : "aucune");
+  parties.push(`<etat>Chaînes approuvées : ${noms(chaines, (c) => c.nom)}. Listes approuvées : ${noms(listes, (l) => l.titre)}. Vidéos approuvées à l'unité : ${videos.length}.</etat>`);
   return parties.join("\n\n");
 }
 
-function appliquer(decision, fichesVideo, fichesChaine) {
+function appliquer(decision, { fichesVideo, fichesChaine, fichesListe }) {
   const doc = etat.approbations;
-  if (decision.verdict === "approuve_video") {
-    // L'identifiant doit sortir d'une fiche lue par l'appli a ce tour-ci.
-    const fiche = fichesVideo.find((f) => f.id === decision.videoID);
-    if (!fiche || doc.videos.some((v) => v.id === fiche.id)) return false;
-    etat.approbations = fusion(doc, { videos: [{
-      id: fiche.id, titre: fiche.titre, chaine: fiche.chaine, approuveeLe: maintenant(), raison: decision.reponse }] });
+  const ajout = (cle, element) => {
+    etat.approbations = fusion(doc, { [cle]: [{ ...element, approuveeLe: maintenant(), raison: decision.reponse }] });
     return true;
+  };
+  // Chaque identifiant doit sortir d'une fiche lue par l'appli a ce tour-ci.
+  if (decision.verdict === "approuve_video") {
+    const f = fichesVideo.find((x) => x.id === decision.videoID);
+    if (!f || doc.videos.some((v) => v.id === f.id)) return false;
+    return ajout("videos", { id: f.id, titre: f.titre, chaine: f.chaine });
+  }
+  if (decision.verdict === "approuve_liste") {
+    const f = fichesListe.find((x) => x.id === decision.listeID);
+    if (!f || doc.listes.some((l) => l.id === f.id)) return false;
+    return ajout("listes", { id: f.id, titre: f.titre, chaine: f.chaine });
   }
   if (decision.verdict === "approuve_chaine") {
     const nom = fichesChaine.find((f) => f.id === decision.chaineID)?.nom
       ?? fichesVideo.find((f) => f.chaineID === decision.chaineID)?.chaine;
     if (!nom || doc.chaines.some((c) => c.id === decision.chaineID)) return false;
-    etat.approbations = fusion(doc, { chaines: [{
-      id: decision.chaineID, nom, approuveeLe: maintenant(), raison: decision.reponse }] });
-    return true;
+    return ajout("chaines", { id: decision.chaineID, nom });
   }
   return false;
 }
@@ -158,6 +194,7 @@ function nouvelleConversation(note) {
 // Retirer est toujours permis : fermer une porte ne demande personne.
 async function retirer(id) {
   etat.approbations = fusion(etat.approbations, { retraits: [{ id, le: maintenant() }] });
+  if (listeOuverte?.liste.id === id) listeOuverte = null;
   await enregistrer();
   rendre();
   await synchroniserSiPossible();
@@ -166,21 +203,70 @@ async function retirer(id) {
 
 // MARK: Lecteur
 
-function ouvrirLecteur(id, titre) {
-  const parametres = "playsinline=1&rel=0&modestbranding=1&iv_load_policy=3&autoplay=1";
+let suivi = null;   // ce que le lecteur a dit de la video en cours
+
+function ouvrirLecteur({ videoID, listeID, titre }) {
+  const parametres = new URLSearchParams({
+    playsinline: "1", rel: "0", modestbranding: "1", iv_load_policy: "3", autoplay: "1",
+    enablejsapi: "1", origin: location.origin,
+  });
+  if (listeID) parametres.set("list", listeID);
   const cadre = document.createElement("iframe");
-  cadre.src = `https://www.youtube-nocookie.com/embed/${id}?${parametres}`;
+  cadre.src = `https://www.youtube-nocookie.com/embed/${videoID ?? "videoseries"}?${parametres}`;
   cadre.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
   cadre.allowFullscreen = true;
   // Pas d'`allow-popups` : « Regarder sur YouTube » et les liens sortants ne
-  // mènent nulle part.
+  // menent nulle part.
   cadre.sandbox = "allow-scripts allow-same-origin allow-presentation";
+  suivi = { cadre, id: videoID ?? null, t: 0, d: 0, signale: null, entendu: false };
+  // Le lecteur ne parle qu'apres qu'on s'est annonce ; on insiste jusqu'a
+  // la premiere reponse.
+  const ecouter = () => cadre.contentWindow?.postMessage(JSON.stringify({ event: "listening", id: 1, channel: "widget" }), "*");
+  cadre.addEventListener("load", ecouter);
+  suivi.relance = setInterval(() => (suivi?.entendu ? clearInterval(suivi.relance) : ecouter()), 1000);
   $("#cadre").replaceChildren(cadre);
   $("#titre-lecteur").textContent = titre;
   $("#lecteur").hidden = false;
+  rendreBoutonVue();
+}
+
+// Le protocole de messages du lecteur integre, celui de l'API iframe de
+// YouTube : position, duree, video en cours, etat. Regardee a 90 % ou jusqu'au
+// bout, une video est marquee vue.
+function ecouterLecteur(e) {
+  if (!suivi || e.source !== suivi.cadre.contentWindow) return;
+  let m;
+  try { m = JSON.parse(e.data); } catch { return; }
+  suivi.entendu = true;
+  const info = m.info ?? {};
+  if (m.event === "infoDelivery") {
+    const id = info.videoData?.video_id;
+    if (id && id !== suivi.id) { suivi.id = id; suivi.t = 0; suivi.d = 0; rendreBoutonVue(); }
+    if (typeof info.currentTime === "number") suivi.t = info.currentTime;
+    if (typeof info.duration === "number" && info.duration > 0) suivi.d = info.duration;
+  }
+  const etatLecteur = m.event === "onStateChange" ? info : info.playerState;
+  if (suivi.id && suivi.id !== suivi.signale && ((suivi.d > 0 && suivi.t / suivi.d >= 0.9) || etatLecteur === 0)) {
+    suivi.signale = suivi.id;
+    marquer(suivi.id, true).then(rendreBoutonVue);
+  }
+}
+
+function rendreBoutonVue() {
+  const bouton = $("#basculer-vue");
+  bouton.hidden = !suivi?.id;
+  if (suivi?.id) bouton.textContent = estVue(suivi.id) ? "Remettre à voir" : "Marquer comme vue";
+}
+
+async function basculerVueEnCours() {
+  if (!suivi?.id) return;
+  await marquer(suivi.id, !estVue(suivi.id));
+  rendreBoutonVue();
 }
 
 function fermerLecteur() {
+  if (suivi) clearInterval(suivi.relance);
+  suivi = null;
   $("#cadre").replaceChildren();
   $("#lecteur").hidden = true;
 }
@@ -193,18 +279,24 @@ function rendre() {
   rendreApprouve();
 }
 
-function carteVideo({ id, titre, chaine, publieeLe }) {
-  const carte = document.createElement("button");
-  carte.className = "carte";
-  carte.innerHTML = `<img alt="" loading="lazy"><span class="titre"></span><span class="chaine"></span>`;
+function carteVideo({ id, titre, chaine, publieeLe }, listeID) {
+  const carte = document.createElement("div");
+  carte.className = "carte" + (estVue(id) ? " vue" : "");
+  carte.innerHTML = `<button class="ouvrir"><img alt="" loading="lazy"><span class="titre"></span><span class="chaine"></span></button>
+    <button class="marque" title=""></button>`;
   carte.querySelector("img").src = youtube.miniature(id);
   carte.querySelector(".titre").textContent = titre;
   carte.querySelector(".chaine").textContent = publieeLe
     ? `${chaine} · ${new Date(publieeLe).toLocaleDateString("fr-CA", { day: "numeric", month: "long" })}`
     : chaine;
-  carte.addEventListener("click", () => ouvrirLecteur(id, titre));
+  carte.querySelector(".ouvrir").addEventListener("click", () => ouvrirLecteur({ videoID: id, listeID, titre }));
+  const marque = carte.querySelector(".marque");
+  marque.textContent = estVue(id) ? "✓ Vue" : "Marquer vue";
+  marque.addEventListener("click", () => marquer(id, !estVue(id)));
   return carte;
 }
+
+const aVoir = (videos) => (montrerVues ? videos : videos.filter((v) => !estVue(v.id)));
 
 function rendreFil() {
   const liste = $("#fil-liste");
@@ -212,17 +304,23 @@ function rendreFil() {
     liste.innerHTML = `<p class="vide">Aucune chaîne approuvée. Colle le lien d'une chaîne dans l'onglet Demander : si le juge l'approuve, ses nouvelles vidéos arriveront ici.</p>`;
     return;
   }
-  liste.replaceChildren(...fil.map(carteVideo));
+  const videos = aVoir(fil);
+  if (videos.length === 0 && fil.length > 0) {
+    liste.innerHTML = `<p class="vide">Tout est vu. Rien de nouveau à voir pour l'instant.</p>`;
+    return;
+  }
+  liste.replaceChildren(...videos.map((v) => carteVideo(v)));
 }
 
 function rendreConversation() {
   const conteneur = $("#conversation");
   if (etat.echanges.length === 0) {
-    conteneur.innerHTML = `<p class="vide">Colle le lien d'une vidéo ou d'une chaîne et dis pourquoi tu veux la regarder.</p>`;
+    conteneur.innerHTML = `<p class="vide">Colle le lien d'une vidéo, d'une liste de lecture ou d'une chaîne et dis pourquoi tu veux la regarder.</p>`;
   } else {
     const etiquettes = {
       approuve_video: ["Vidéo approuvée", "ok"],
       approuve_chaine: ["Chaîne approuvée", "ok"],
+      approuve_liste: ["Liste approuvée", "ok"],
       refuse: ["Refusé", "non"],
     };
     conteneur.replaceChildren(...etat.echanges.map((e) => {
@@ -252,29 +350,78 @@ function rendreConversation() {
   $("#envoyer").disabled = enAttente;
 }
 
+function ligne(titre, sousTitre, id, surClic) {
+  const li = document.createElement("li");
+  const texte = document.createElement(surClic ? "button" : "div");
+  texte.className = "texte";
+  texte.innerHTML = `<strong></strong><small></small>`;
+  texte.querySelector("strong").textContent = titre;
+  texte.querySelector("small").textContent = sousTitre;
+  if (surClic) texte.addEventListener("click", surClic);
+  const retrait = document.createElement("button");
+  retrait.className = "retirer";
+  retrait.textContent = "Retirer";
+  retrait.addEventListener("click", () => retirer(id));
+  li.append(texte, retrait);
+  return li;
+}
+
+const vide = (texte) => Object.assign(document.createElement("li"), { className: "vide", textContent: texte });
+
 function rendreApprouve() {
-  const { videos, chaines } = etat.approbations;
-  const ligne = (titre, sousTitre, id, surClic) => {
-    const li = document.createElement("li");
-    const texte = document.createElement(surClic ? "button" : "div");
-    texte.className = "texte";
-    texte.innerHTML = `<strong></strong><small></small>`;
-    texte.querySelector("strong").textContent = titre;
-    texte.querySelector("small").textContent = sousTitre;
-    if (surClic) texte.addEventListener("click", surClic);
-    const retrait = document.createElement("button");
-    retrait.className = "retirer";
-    retrait.textContent = "Retirer";
-    retrait.addEventListener("click", () => retirer(id));
-    li.append(texte, retrait);
-    return li;
-  };
-  $("#videos-approuvees").replaceChildren(...(videos.length
-    ? videos.map((v) => ligne(v.titre, v.chaine, v.id, () => ouvrirLecteur(v.id, v.titre)))
-    : [Object.assign(document.createElement("li"), { className: "vide", textContent: "Aucune vidéo approuvée à l'unité." })]));
+  const { videos, chaines, listes } = etat.approbations;
+
+  $("#listes-approuvees").replaceChildren(...(listes.length
+    ? listes.map((l) => ligne(l.titre, l.chaine, l.id, () => ouvrirListe(l)))
+    : [vide("Aucune liste approuvée.")]));
+  rendreListeOuverte();
+
+  const visibles = aVoir(videos);
+  $("#videos-approuvees").replaceChildren(...(visibles.length
+    ? visibles.map((v) => {
+        const li = ligne(v.titre, v.chaine + (estVue(v.id) ? " · vue" : ""), v.id,
+          () => ouvrirLecteur({ videoID: v.id, titre: v.titre }));
+        const marque = document.createElement("button");
+        marque.textContent = estVue(v.id) ? "À voir" : "Vue";
+        marque.addEventListener("click", () => marquer(v.id, !estVue(v.id)));
+        li.insertBefore(marque, li.lastChild);
+        return li;
+      })
+    : [vide(videos.length ? "Toutes les vidéos approuvées sont vues." : "Aucune vidéo approuvée à l'unité.")]));
+
   $("#chaines-approuvees").replaceChildren(...(chaines.length
     ? chaines.map((c) => ligne(c.nom, c.raison, c.id))
-    : [Object.assign(document.createElement("li"), { className: "vide", textContent: "Aucune chaîne approuvée." })]));
+    : [vide("Aucune chaîne approuvée.")]));
+}
+
+async function ouvrirListe(liste) {
+  listeOuverte = { liste, fiche: null, erreur: null };
+  rendreListeOuverte();
+  try { listeOuverte.fiche = await youtube.ficheListe(liste.id); }
+  catch { if (listeOuverte) listeOuverte.erreur = "Impossible de lire cette liste pour l'instant."; }
+  rendreListeOuverte();
+}
+
+function rendreListeOuverte() {
+  const zone = $("#liste-ouverte");
+  zone.hidden = !listeOuverte;
+  if (!listeOuverte) return;
+  const { liste, fiche, erreur } = listeOuverte;
+  $("#liste-titre").textContent = liste.titre;
+  const grille = $("#liste-videos");
+  if (!fiche) {
+    $("#liste-progres").textContent = erreur ?? "Lecture de la liste…";
+    grille.replaceChildren();
+    $("#liste-lire").hidden = true;
+    return;
+  }
+  const restantes = fiche.videos.filter((v) => !estVue(v.id));
+  $("#liste-progres").textContent = `${fiche.videos.length - restantes.length} vue(s) sur ${fiche.videos.length}`;
+  const lire = $("#liste-lire");
+  lire.hidden = false;
+  lire.textContent = restantes.length === fiche.videos.length ? "Tout lire" : "Reprendre";
+  lire.onclick = () => ouvrirLecteur({ videoID: restantes[0]?.id, listeID: liste.id, titre: liste.titre });
+  grille.replaceChildren(...aVoir(fiche.videos).map((v) => carteVideo({ ...v, chaine: fiche.chaine }, liste.id)));
 }
 
 // MARK: Reglages

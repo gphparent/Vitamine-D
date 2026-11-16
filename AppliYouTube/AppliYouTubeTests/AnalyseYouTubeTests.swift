@@ -43,6 +43,32 @@ final class AnalyseYouTubeTests: XCTestCase {
         XCTAssertEqual(AnalyseYouTube.meta("og:title", dans: page), "Théo & Cie")
     }
 
+    func testListesDeLectureSansLesMix() {
+        let texte = """
+        https://www.youtube.com/playlist?list=PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf
+        https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PLabcdefghij12345
+        https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=RDdQw4w9WgXcQ
+        """
+        XCTAssertEqual(AnalyseYouTube.identifiantsListe(dans: texte),
+                       ["PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf", "PLabcdefghij12345"])
+    }
+
+    func testFicheDeListe() {
+        let page = #"""
+        <meta property="og:title" content="Cours de grec">
+        <script>var ytInitialData = {"header":{"avatarStack":{"x":1},"text":{"content":"de Prof Untel"}},"contents":[
+        {"lockupViewModel":{"contentId":"aaaaaaaaaaa","contentType":"LOCKUP_CONTENT_TYPE_VIDEO","metadata":{"lockupMetadataViewModel":{"title":{"content":"Leçon 1"}}}}},
+        {"lockupViewModel":{"contentId":"PLzzz","contentType":"LOCKUP_CONTENT_TYPE_PLAYLIST","metadata":{"lockupMetadataViewModel":{"title":{"content":"Autre"}}}}},
+        {"playlistVideoRenderer":{"videoId":"bbbbbbbbbbb","title":{"runs":[{"text":"Leçon 2"}]}}}
+        ]};</script>
+        """#
+        let fiche = AnalyseYouTube.ficheListe(depuisPage: page, id: "PL123")
+        XCTAssertEqual(fiche?.titre, "Cours de grec")
+        XCTAssertEqual(fiche?.chaine, "Prof Untel")
+        XCTAssertEqual(fiche?.videos.map(\.id), ["aaaaaaaaaaa", "bbbbbbbbbbb"])
+        XCTAssertEqual(fiche?.videos.map(\.titre), ["Leçon 1", "Leçon 2"])
+    }
+
     func testFluxRSS() {
         let xml = """
         <?xml version="1.0" encoding="UTF-8"?>

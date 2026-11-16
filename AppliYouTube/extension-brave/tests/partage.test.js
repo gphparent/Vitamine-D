@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fusion, documentVide } from "../partage.js";
-import { identifiantsVideo, adressesChaine } from "../youtube.js";
+import { identifiantsVideo, adressesChaine, identifiantsListe, analyserListe } from "../youtube.js";
 
 const chaine = (id, approuveeLe) => ({ id, nom: id, approuveeLe, raison: "" });
 
@@ -41,4 +41,39 @@ test("les liens de video sous toutes leurs formes", () => {
 test("les liens de chaine, sans confondre une video", () => {
   assert.deepEqual(adressesChaine("https://m.youtube.com/@ChaineTest"), ["https://www.youtube.com/@ChaineTest"]);
   assert.deepEqual(adressesChaine("https://www.youtube.com/watch?v=dQw4w9WgXcQ"), []);
+});
+
+test("le dernier visionnement l'emporte, dans un sens comme dans l'autre", () => {
+  const iphone = { vus: [{ id: "v", le: "2026-11-01T10:00:00.000Z", vu: true }] };
+  const ordi = { vus: [{ id: "v", le: "2026-11-02T10:00:00.000Z", vu: false }] };
+  assert.equal(fusion(iphone, ordi).vus[0].vu, false);
+  assert.equal(fusion(ordi, iphone).vus[0].vu, false);
+});
+
+test("un document anterieur, sans listes ni vus, se complete", () => {
+  const ancien = { version: 1, chaines: [chaine("UCa", "2026-11-01T10:00:00.000Z")], videos: [], retraits: [] };
+  const doc = fusion(ancien, documentVide());
+  assert.deepEqual(doc.listes, []);
+  assert.deepEqual(doc.vus, []);
+  assert.equal(doc.chaines.length, 1);
+});
+
+test("les listes de lecture, sans les Mix", () => {
+  const texte = `https://www.youtube.com/playlist?list=PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf
+    https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PLabcdefghij12345
+    https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=RDdQw4w9WgXcQ`;
+  assert.deepEqual(identifiantsListe(texte), ["PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf", "PLabcdefghij12345"]);
+});
+
+test("la fiche d'une liste, sous les deux formes de YouTube", () => {
+  const page = `<meta property="og:title" content="Cours de grec">
+    <script>var ytInitialData = {"header":{"avatarStack":{"x":1},"text":{"content":"de Prof Untel"}},"contents":[
+    {"lockupViewModel":{"contentId":"aaaaaaaaaaa","contentType":"LOCKUP_CONTENT_TYPE_VIDEO","metadata":{"lockupMetadataViewModel":{"title":{"content":"Leçon 1"}}}}},
+    {"lockupViewModel":{"contentId":"PLzzz","contentType":"LOCKUP_CONTENT_TYPE_PLAYLIST","metadata":{"lockupMetadataViewModel":{"title":{"content":"Autre"}}}}},
+    {"playlistVideoRenderer":{"videoId":"bbbbbbbbbbb","title":{"runs":[{"text":"Leçon 2"}]}}}
+    ]};</script>`;
+  const fiche = analyserListe(page, "PL123");
+  assert.equal(fiche.titre, "Cours de grec");
+  assert.equal(fiche.chaine, "Prof Untel");
+  assert.deepEqual(fiche.videos, [{ id: "aaaaaaaaaaa", titre: "Leçon 1" }, { id: "bbbbbbbbbbb", titre: "Leçon 2" }]);
 });

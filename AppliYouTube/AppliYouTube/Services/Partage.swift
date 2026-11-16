@@ -9,7 +9,30 @@ struct DocumentPartage: Codable, Equatable {
     var version = 1
     var chaines: [Chaine] = []
     var videos: [VideoApprouvee] = []
+    var listes: [ListeApprouvee] = []
     var retraits: [Retrait] = []
+    var vus: [Visionnement] = []
+
+    init(chaines: [Chaine] = [], videos: [VideoApprouvee] = [], listes: [ListeApprouvee] = [],
+         retraits: [Retrait] = [], vus: [Visionnement] = []) {
+        self.chaines = chaines
+        self.videos = videos
+        self.listes = listes
+        self.retraits = retraits
+        self.vus = vus
+    }
+
+    /// Tolere les champs absents : un document ecrit par une version
+    /// anterieure (sans `listes`) doit se relire, et non etre ecrase.
+    init(from decodeur: Decoder) throws {
+        let c = try decodeur.container(keyedBy: CodingKeys.self)
+        version = try c.decodeIfPresent(Int.self, forKey: .version) ?? 1
+        chaines = try c.decodeIfPresent([Chaine].self, forKey: .chaines) ?? []
+        videos = try c.decodeIfPresent([VideoApprouvee].self, forKey: .videos) ?? []
+        listes = try c.decodeIfPresent([ListeApprouvee].self, forKey: .listes) ?? []
+        retraits = try c.decodeIfPresent([Retrait].self, forKey: .retraits) ?? []
+        vus = try c.decodeIfPresent([Visionnement].self, forKey: .vus) ?? []
+    }
 
     /// Garde, pour chaque identifiant, la plus recente approbation, puis
     /// retire ce qu'un retrait posterieur a ferme.
@@ -27,10 +50,18 @@ struct DocumentPartage: Codable, Equatable {
                 .filter { e in !(retraits[e.id].map { $0.le >= date(e) } ?? false) }
                 .sorted { date($0) > date($1) }
         }
+        // Pour les visionnements, le dernier mot l'emporte : vu, puis remis a
+        // voir, puis revu.
+        var vus: [String: Visionnement] = [:]
+        for v in a.vus + b.vus where (vus[v.id]?.le ?? .distantPast) < v.le {
+            vus[v.id] = v
+        }
         return DocumentPartage(
             chaines: garder(a.chaines + b.chaines, date: \.approuveeLe),
             videos: garder(a.videos + b.videos, date: \.approuveeLe),
-            retraits: retraits.values.sorted { $0.id < $1.id })
+            listes: garder(a.listes + b.listes, date: \.approuveeLe),
+            retraits: retraits.values.sorted { $0.id < $1.id },
+            vus: vus.values.sorted { $0.id < $1.id })
     }
 
     /// Dates en ISO 8601 a la milliseconde, comme `toISOString()` cote
@@ -65,6 +96,13 @@ struct DocumentPartage: Codable, Equatable {
     }()
 
     private static let formatSansFraction = ISO8601DateFormatter()
+}
+
+/// Une video marquee vue, ou remise a voir (`vu` a faux).
+struct Visionnement: Codable, Hashable {
+    let id: String
+    let le: Date
+    let vu: Bool
 }
 
 struct Retrait: Codable, Hashable {

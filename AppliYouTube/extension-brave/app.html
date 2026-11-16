@@ -12,7 +12,7 @@
   <header>
     <h1><img src="icones/icone-32.png" alt=""> Appli YouTube</h1>
     <nav>
-      <button data-onglet="fil" class="actif">Fil</button>
+      <button data-onglet="fil" class="actif">À voir</button>
       <button data-onglet="demander">Demander</button>
       <button data-onglet="approuve">Approuvé</button>
       <button data-onglet="reglages">Réglages</button>
@@ -21,7 +21,9 @@
 
   <main>
     <section id="fil">
-      <div class="barre"><h2>Fil</h2><button id="rafraichir">Rafraîchir</button></div>
+      <div class="barre"><h2>À voir</h2>
+        <span class="actions"><label class="bascule"><input type="checkbox" class="montrer-vues"> Afficher les vues</label>
+        <button id="rafraichir">Rafraîchir</button></span></div>
       <div id="fil-liste" class="grille"></div>
     </section>
 
@@ -29,12 +31,20 @@
       <div class="barre"><h2>Demander</h2><button id="nouvelle">Nouvelle conversation</button></div>
       <div id="conversation"></div>
       <form id="formulaire">
-        <textarea id="saisie" rows="2" placeholder="Lien ou message (Entrée pour envoyer, Maj+Entrée pour aller à la ligne)"></textarea>
+        <textarea id="saisie" rows="2" placeholder="Lien d'une vidéo, d'une liste ou d'une chaîne, ou message (Entrée pour envoyer, Maj+Entrée pour aller à la ligne)"></textarea>
         <button id="envoyer" type="submit">Envoyer</button>
       </form>
     </section>
 
     <section id="approuve" hidden>
+      <div class="barre"><h2>Listes de lecture</h2>
+        <label class="bascule"><input type="checkbox" class="montrer-vues"> Afficher les vues</label></div>
+      <ul id="listes-approuvees" class="liste"></ul>
+      <div id="liste-ouverte" hidden>
+        <div class="barre"><h3 id="liste-titre"></h3><span class="actions"><span id="liste-progres" class="note"></span>
+          <button id="liste-lire">Tout lire</button></span></div>
+        <div id="liste-videos" class="grille"></div>
+      </div>
       <h2>Vidéos</h2>
       <ul id="videos-approuvees" class="liste"></ul>
       <h2>Chaînes</h2>
@@ -62,7 +72,8 @@
 
   <div id="lecteur" hidden>
     <div class="fenetre">
-      <div class="barre"><strong id="titre-lecteur"></strong><button id="fermer-lecteur">Fermer</button></div>
+      <div class="barre"><strong id="titre-lecteur"></strong>
+        <span class="actions"><button id="basculer-vue" hidden></button><button id="fermer-lecteur">Fermer</button></span></div>
       <div id="cadre"></div>
     </div>
   </div>

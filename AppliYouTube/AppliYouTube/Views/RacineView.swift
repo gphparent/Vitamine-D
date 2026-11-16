@@ -5,7 +5,7 @@ struct RacineView: View {
     var body: some View {
         TabView {
             FilView()
-                .tabItem { Label("Fil", systemImage: "play.rectangle") }
+                .tabItem { Label("À voir", systemImage: "play.rectangle") }
 
             DemanderView()
                 .tabItem { Label("Demander", systemImage: "bubble.left.and.text.bubble.right") }

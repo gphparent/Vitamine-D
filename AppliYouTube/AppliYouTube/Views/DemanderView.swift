@@ -100,6 +100,7 @@ private struct Bulle: View {
         switch echange.verdict {
         case .approuveVideo: ("Vidéo approuvée", "checkmark.circle.fill", Color.green)
         case .approuveChaine: ("Chaîne approuvée", "checkmark.seal.fill", Color.green)
+        case .approuveListe: ("Liste approuvée", "list.bullet.rectangle.fill", Color.green)
         case .refuse: ("Refusé", "xmark.circle.fill", Color.red)
         case .discussion, nil: nil
         }

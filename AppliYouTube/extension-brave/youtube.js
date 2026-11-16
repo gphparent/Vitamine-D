@@ -7,6 +7,13 @@ export function identifiantsVideo(texte) {
   return [...new Set([...texte.matchAll(motif)].map((m) => m[1]))];
 }
 
+// Les « Mix » (RD...) sont ecartes d'office : des suites de recommandations
+// sans fin, la spirale meme que l'appli doit eviter.
+export function identifiantsListe(texte) {
+  const motif = /youtube\.com\/[^\s]*[?&]list=([A-Za-z0-9_-]{10,})/g;
+  return [...new Set([...texte.matchAll(motif)].map((m) => m[1]))].filter((id) => !id.startsWith("RD"));
+}
+
 export function adressesChaine(texte) {
   const motif = /(https?:\/\/(?:www\.|m\.)?youtube\.com\/(?:@[\w.\-]+|channel\/UC[\w-]{22}|c\/[\w.\-]+|user\/[\w.\-]+))/g;
   return [...new Set([...texte.matchAll(motif)].map((m) => m[1].replace("://m.", "://www.")))];
@@ -33,6 +40,40 @@ export async function ficheVideo(id) {
   const oembed = JSON.parse(await telecharger(
     `https://www.youtube.com/oembed?format=json&url=https://www.youtube.com/watch?v=${id}`));
   return { id, titre: oembed.title, chaine: oembed.author_name ?? "" };
+}
+
+export async function ficheListe(id) {
+  const page = await telecharger(`https://www.youtube.com/playlist?list=${id}&hl=fr`);
+  const fiche = analyserListe(page, id);
+  if (!fiche) throw new Error("Liste introuvable");
+  return fiche;
+}
+
+// Les videos d'une liste, sous l'une ou l'autre des formes que YouTube a
+// employees : lockupViewModel (2025 et apres) ou playlistVideoRenderer.
+export function analyserListe(page, id) {
+  const donnees = objetJSON("var ytInitialData = ", page);
+  if (!donnees) return null;
+  const videos = [];
+  const parcourir = (valeur) => {
+    if (Array.isArray(valeur)) { valeur.forEach(parcourir); return; }
+    if (!valeur || typeof valeur !== "object") return;
+    for (const [cle, objet] of Object.entries(valeur)) {
+      if (cle === "lockupViewModel" && objet?.contentType === "LOCKUP_CONTENT_TYPE_VIDEO") {
+        const titre = objet.metadata?.lockupMetadataViewModel?.title?.content;
+        if (objet.contentId && titre) videos.push({ id: objet.contentId, titre });
+      } else if (cle === "playlistVideoRenderer") {
+        const titre = objet.title?.runs?.[0]?.text;
+        if (objet.videoId && titre) videos.push({ id: objet.videoId, titre });
+      }
+      parcourir(objet);
+    }
+  };
+  parcourir(donnees);
+  const titre = meta("og:title", page);
+  if (!titre || videos.length === 0) return null;
+  const chaine = (page.match(/"avatarStack".{0,600}?"text":\{"content":"([^"]+)"/)?.[1] ?? "").replace(/^(de|by) /, "");
+  return { id, titre, chaine, videos: videos.slice(0, 100) };
 }
 
 export async function ficheChaine(adresse) {
@@ -74,9 +115,8 @@ function meta(propriete, page) {
   const echappe = propriete.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const m = page.match(new RegExp(`<meta property="${echappe}" content="([^"]*)"`));
   if (!m) return null;
-  const t = document.createElement("textarea");
-  t.innerHTML = m[1];
-  return t.value;
+  return m[1].replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">");
 }
 
 // L'objet JSON qui suit `marqueur`, en comptant les accolades hors des chaines.
