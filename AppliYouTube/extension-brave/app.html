@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="fr-CA">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Appli YouTube</title>
+  <link rel="icon" href="icones/icone-32.png">
+  <link rel="stylesheet" href="app.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header>
+    <h1><img src="icones/icone-32.png" alt=""> Appli YouTube</h1>
+    <nav>
+      <button data-onglet="fil" class="actif">Fil</button>
+      <button data-onglet="demander">Demander</button>
+      <button data-onglet="approuve">Approuvé</button>
+      <button data-onglet="reglages">Réglages</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="fil">
+      <div class="barre"><h2>Fil</h2><button id="rafraichir">Rafraîchir</button></div>
+      <div id="fil-liste" class="grille"></div>
+    </section>
+
+    <section id="demander" hidden>
+      <div class="barre"><h2>Demander</h2><button id="nouvelle">Nouvelle conversation</button></div>
+      <div id="conversation"></div>
+      <form id="formulaire">
+        <textarea id="saisie" rows="2" placeholder="Lien ou message (Entrée pour envoyer, Maj+Entrée pour aller à la ligne)"></textarea>
+        <button id="envoyer" type="submit">Envoyer</button>
+      </form>
+    </section>
+
+    <section id="approuve" hidden>
+      <h2>Vidéos</h2>
+      <ul id="videos-approuvees" class="liste"></ul>
+      <h2>Chaînes</h2>
+      <ul id="chaines-approuvees" class="liste"></ul>
+      <p class="note">On peut retirer, jamais ajouter : seul le juge ouvre une porte.</p>
+    </section>
+
+    <section id="reglages" hidden>
+      <h2>Réglages</h2>
+      <form id="reglages-form">
+        <label>Clé d'API Anthropic
+          <input id="cle-anthropic" type="password" autocomplete="off" data-exemple="sk-ant-…">
+          <small>Créée sur console.anthropic.com. Sert seulement à interroger le juge (<span id="modele"></span>).</small>
+        </label>
+        <label>Jeton GitHub (Gists, lecture et écriture)
+          <input id="jeton-github" type="password" autocomplete="off" data-exemple="github_pat_…">
+          <small>Partage les approbations avec l'iPhone et l'autre ordi, dans un Gist secret de ton compte.</small>
+        </label>
+        <button type="submit">Enregistrer</button>
+        <p id="etat-partage" class="note"></p>
+      </form>
+      <p class="note">Les critères du juge sont dans le dépôt (consignes.txt). Pour les changer, il faut un commit — c'est voulu.</p>
+    </section>
+  </main>
+
+  <div id="lecteur" hidden>
+    <div class="fenetre">
+      <div class="barre"><strong id="titre-lecteur"></strong><button id="fermer-lecteur">Fermer</button></div>
+      <div id="cadre"></div>
+    </div>
+  </div>
+</body>
+</html>

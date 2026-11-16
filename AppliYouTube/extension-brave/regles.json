@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "requestHeaders": [
+        { "header": "Referer", "operation": "set", "value": "https://ca.appliyoutube/" }
+      ]
+    },
+    "condition": {
+      "requestDomains": ["www.youtube-nocookie.com"],
+      "resourceTypes": ["sub_frame"]
+    }
+  }
+]

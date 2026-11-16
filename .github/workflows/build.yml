@@ -18,6 +18,9 @@ on:
       - "LICENSE"
       - ".gitignore"
       - "Tools/**"
+      # L'appli YouTube voisine a son propre workflow (appli-youtube.yml).
+      - "AppliYouTube/**"
+      - ".github/workflows/appli-youtube.yml"
   workflow_dispatch:
 
 # Deux poussées coup sur coup ne justifient pas deux compilations : la
