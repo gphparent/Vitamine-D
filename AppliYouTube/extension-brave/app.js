@@ -20,6 +20,7 @@ let fil = [];
 let enAttente = false;
 let montrerVues = false;
 let listeOuverte = null;      // { liste, fiche } quand une liste est affichee
+let recherche = "";
 
 const $ = (s) => document.querySelector(s);
 const maintenant = () => new Date().toISOString();
@@ -60,6 +61,7 @@ async function demarrer() {
       rendre();
     });
   }
+  $("#recherche").addEventListener("input", (e) => { recherche = e.target.value; rendreFil(); });
   window.addEventListener("message", ecouterLecteur);
   brancherReglages();
   rendre();
@@ -219,6 +221,22 @@ async function retirer(id) {
   await rafraichirFil();
 }
 
+// Se desabonner : la chaine n'est plus approuvee, et ses videos approuvees a
+// l'unite partent avec elle.
+async function desabonner(nom) {
+  const { chaines, videos } = etat.approbations;
+  const nb = videos.filter((v) => v.chaine === nom).length;
+  const detail = nb ? ` et ses ${nb} vidéo${nb > 1 ? "s" : ""} approuvée${nb > 1 ? "s" : ""}` : "";
+  if (!confirm(`Se désabonner de « ${nom} » ?\n\nLa chaîne${detail} disparaissent, sur tous tes appareils.`)) return;
+  const ids = [...chaines.filter((c) => c.nom === nom), ...videos.filter((v) => v.chaine === nom)].map((x) => x.id);
+  const le = maintenant();
+  etat.approbations = fusion(etat.approbations, { retraits: ids.map((id) => ({ id, le })) });
+  fil = fil.filter((v) => v.chaine !== nom);
+  await enregistrer();
+  rendre();
+  await synchroniserSiPossible();
+}
+
 // MARK: Lecteur
 
 let suivi = null;   // ce que le lecteur a dit de la video en cours
@@ -301,7 +319,10 @@ function carteVideo({ id, titre, chaine, publieeLe }, listeID) {
   const carte = document.createElement("div");
   carte.className = "carte" + (estVue(id) ? " vue" : "");
   carte.innerHTML = `<button class="ouvrir"><img alt="" loading="lazy"><span class="titre"></span><span class="chaine"></span></button>
-    <button class="marque" title=""></button>`;
+    <span class="boutons"><button class="marque"></button><button class="desabonner">Se désabonner</button></span>`;
+  const desab = carte.querySelector(".desabonner");
+  desab.title = `Se désabonner de « ${chaine} »`;
+  desab.addEventListener("click", () => desabonner(chaine));
   carte.querySelector("img").src = youtube.miniature(id);
   carte.querySelector(".titre").textContent = titre;
   carte.querySelector(".chaine").textContent = publieeLe
@@ -316,6 +337,11 @@ function carteVideo({ id, titre, chaine, publieeLe }, listeID) {
 
 const aVoir = (videos) => (montrerVues ? videos : videos.filter((v) => !estVue(v.id)));
 
+// Sans egard aux accents ni aux majuscules.
+const sansAccents = (t) => (t ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const correspond = (v) => !recherche.trim()
+  || [v.titre, v.chaine].some((t) => sansAccents(t).includes(sansAccents(recherche.trim())));
+
 // Ce qui reste a voir : les nouvelles videos des chaines approuvees, puis les
 // videos approuvees a l'unite qui n'y figurent pas deja.
 function rendreFil() {
@@ -325,12 +351,14 @@ function rendreFil() {
     zone.innerHTML = `<p class="vide">Rien d'approuvé pour l'instant. Dans l'onglet Demander, colle un lien ou demande au juge de chercher : ce qu'il approuve arrivera ici.</p>`;
     return;
   }
-  const nouveautes = aVoir(fil);
+  const nouveautes = aVoir(fil).filter(correspond);
   const dansLeFil = new Set(fil.map((v) => v.id));
-  const approuvees = aVoir(videos.filter((v) => !dansLeFil.has(v.id)))
+  const approuvees = aVoir(videos.filter((v) => !dansLeFil.has(v.id))).filter(correspond)
     .sort((a, b) => (a.approuveeLe === b.approuveeLe ? a.titre.localeCompare(b.titre, "fr") : a.approuveeLe < b.approuveeLe ? 1 : -1));
   if (nouveautes.length === 0 && approuvees.length === 0) {
-    zone.innerHTML = `<p class="vide">Tout est vu. Rien de nouveau à voir pour l'instant.</p>`;
+    zone.innerHTML = recherche.trim()
+      ? `<p class="vide">Aucun résultat pour cette recherche.</p>`
+      : `<p class="vide">Tout est vu. Rien de nouveau à voir pour l'instant.</p>`;
     return;
   }
   const section = (titre, cartes) => {
@@ -435,9 +463,24 @@ function rendreApprouve() {
       })
     : [vide(videos.length ? "Toutes les vidéos approuvées sont vues." : "Aucune vidéo approuvée à l'unité.")]));
 
-  $("#chaines-approuvees").replaceChildren(...(chaines.length
-    ? chaines.map((c) => ligne(c.nom, c.raison, c.id))
-    : [vide("Aucune chaîne approuvée.")]));
+  // Les chaines approuvees en entier et celles d'ou viennent des videos
+  // approuvees a l'unite.
+  const compte = new Map();
+  for (const v of videos) compte.set(v.chaine, (compte.get(v.chaine) ?? 0) + 1);
+  const noms = [...new Set([...chaines.map((c) => c.nom), ...compte.keys()])].sort((a, b) => a.localeCompare(b, "fr"));
+  $("#chaines-approuvees").replaceChildren(...(noms.length
+    ? noms.map((nom) => {
+        const nb = compte.get(nom) ?? 0;
+        const details = [chaines.some((c) => c.nom === nom) ? "Chaîne approuvée en entier" : null,
+                         nb ? `${nb} vidéo${nb > 1 ? "s" : ""} approuvée${nb > 1 ? "s" : ""}` : null].filter(Boolean).join(" · ");
+        const li = ligne(nom, details, null);
+        const bouton = li.querySelector(".retirer");
+        bouton.textContent = "Se désabonner";
+        bouton.replaceWith(bouton.cloneNode(true));
+        li.querySelector(".retirer").addEventListener("click", () => desabonner(nom));
+        return li;
+      })
+    : [vide("Aucune chaîne.")]));
 }
 
 async function ouvrirListe(liste) {

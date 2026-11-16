@@ -253,6 +253,32 @@ final class AppModel {
         Task { await synchroniser() }
     }
 
+    /// Les chaines d'ou viennent les videos approuvees, qu'elles soient
+    /// approuvees en entier ou non, avec le nombre de videos de chacune.
+    var sources: [SourceChaine] {
+        var compte: [String: Int] = [:]
+        for video in videos { compte[video.chaine, default: 0] += 1 }
+        var noms = Set(compte.keys)
+        noms.formUnion(chaines.map(\.nom))
+        let tries = noms.sorted { $0.localizedCompare($1) == .orderedAscending }
+        return tries.map { nom in
+            SourceChaine(nom: nom, approuvee: chaines.contains { $0.nom == nom }, videos: compte[nom] ?? 0)
+        }
+    }
+
+    /// Se desabonner : la chaine n'est plus approuvee, et ses videos approuvees
+    /// a l'unite partent avec elle.
+    func desabonner(chaine nom: String) {
+        var ids = chaines.filter { $0.nom == nom }.map(\.id)
+        ids += videos.filter { $0.chaine == nom }.map(\.id)
+        chaines.removeAll { $0.nom == nom }
+        videos.removeAll { $0.chaine == nom }
+        fil.removeAll { $0.chaine == nom }
+        retraits += ids.map { Retrait(id: $0, le: .now) }
+        enregistrer()
+        Task { await synchroniser() }
+    }
+
     func retirer(liste: ListeApprouvee) {
         listes.removeAll { $0.id == liste.id }
         retraits.append(Retrait(id: liste.id, le: .now))

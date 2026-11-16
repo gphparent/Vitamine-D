@@ -28,6 +28,24 @@ struct ListeApprouvee: Codable, Identifiable, Hashable {
     var raison: String
 }
 
+/// Une chaine telle que vue depuis les approbations : approuvee en entier,
+/// source de videos approuvees a l'unite, ou les deux.
+struct SourceChaine: Identifiable, Hashable {
+    let nom: String
+    let approuvee: Bool
+    let videos: Int
+
+    var id: String { nom }
+
+    var description: String {
+        var parties: [String] = []
+        if approuvee { parties.append("Chaîne approuvée en entier") }
+        if videos == 1 { parties.append("1 vidéo approuvée") }
+        if videos > 1 { parties.append("\(videos) vidéos approuvées") }
+        return parties.joined(separator: " · ")
+    }
+}
+
 /// Une entree du fil, tiree du flux RSS d'une chaine approuvee.
 struct VideoDuFil: Identifiable, Hashable {
     let id: String

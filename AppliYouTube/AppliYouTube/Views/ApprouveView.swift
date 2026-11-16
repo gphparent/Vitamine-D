@@ -5,6 +5,8 @@ struct ApprouveView: View {
 
     @Environment(AppModel.self) private var modele
     @State private var montrerVues = false
+    @State private var aDesabonner: String?
+
 
     var body: some View {
         NavigationStack {
@@ -49,22 +51,40 @@ struct ApprouveView: View {
                     }
                 }
 
-                Section("Chaînes") {
-                    if modele.chaines.isEmpty {
-                        Text("Aucune chaîne approuvée.").foregroundStyle(.secondary)
+                Section {
+                    let sources = modele.sources
+                    if sources.isEmpty {
+                        Text("Aucune chaîne.").foregroundStyle(.secondary)
                     }
-                    ForEach(modele.chaines) { chaine in
+                    ForEach(sources) { source in
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(chaine.nom).font(.body.weight(.medium))
-                            Text(chaine.raison).font(.caption).foregroundStyle(.secondary).lineLimit(3)
+                            Text(source.nom).font(.body.weight(.medium))
+                            Text(source.description).font(.caption).foregroundStyle(.secondary)
+                        }
+                        .swipeActions {
+                            Button("Se désabonner", role: .destructive) {
+                                aDesabonner = source.nom
+                            }
                         }
                     }
-                    .onDelete { indices in
-                        indices.map { modele.chaines[$0] }.forEach(modele.retirer(chaine:))
-                    }
+                } header: {
+                    Text("Chaînes")
+                } footer: {
+                    Text("Glisse vers la gauche pour te désabonner : la chaîne et ses vidéos approuvées disparaissent.")
                 }
             }
             .navigationTitle("Approuvé")
+            .confirmationDialog(
+                "Se désabonner de « \(aDesabonner ?? "") » ?",
+                isPresented: Binding(get: { aDesabonner != nil }, set: { if !$0 { aDesabonner = nil } }),
+                titleVisibility: .visible
+            ) {
+                Button("Se désabonner", role: .destructive) {
+                    if let nom = aDesabonner { modele.desabonner(chaine: nom) }
+                }
+            } message: {
+                Text("La chaîne et toutes ses vidéos approuvées disparaissent, sur tous tes appareils.")
+            }
             .toolbar {
                 Toggle(isOn: $montrerVues) {
                     Label("Afficher les vidéos vues", systemImage: "eye")

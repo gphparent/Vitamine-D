@@ -6,9 +6,17 @@ struct FilView: View {
 
     @Environment(AppModel.self) private var modele
     @State private var montrerVues = false
+    @State private var recherche = ""
+    @State private var aDesabonner: String?
+
+    /// Sans egard aux accents ni aux majuscules.
+    private func correspond(_ titre: String, _ chaine: String) -> Bool {
+        let r = recherche.trimmingCharacters(in: .whitespaces)
+        return r.isEmpty || titre.localizedStandardContains(r) || chaine.localizedStandardContains(r)
+    }
 
     private var nouveautes: [VideoDuFil] {
-        montrerVues ? modele.fil : modele.fil.filter { !modele.estVue($0.id) }
+        modele.fil.filter { (montrerVues || !modele.estVue($0.id)) && correspond($0.titre, $0.chaine) }
     }
 
     /// Les videos approuvees a l'unite, sans celles deja dans les nouveautes.
@@ -16,6 +24,7 @@ struct FilView: View {
         let dansLeFil = Set(modele.fil.map(\.id))
         return modele.videos
             .filter { !dansLeFil.contains($0.id) && (montrerVues || !modele.estVue($0.id)) }
+            .filter { correspond($0.titre, $0.chaine) }
             .sorted { ($0.approuveeLe, $1.titre) > ($1.approuveeLe, $0.titre) }
     }
 
@@ -29,6 +38,8 @@ struct FilView: View {
                         description: Text("Dans l'onglet Demander, colle un lien ou demande au juge de chercher : ce qu'il approuve arrivera ici."))
                 } else if modele.fil.isEmpty && modele.chargementFil && approuvees.isEmpty {
                     ProgressView()
+                } else if nouveautes.isEmpty && approuvees.isEmpty && !recherche.isEmpty {
+                    ContentUnavailableView.search(text: recherche)
                 } else if nouveautes.isEmpty && approuvees.isEmpty {
                     ContentUnavailableView(
                         "Tout est vu",
@@ -61,6 +72,18 @@ struct FilView: View {
                 }
             }
             .navigationTitle("À voir")
+            .searchable(text: $recherche, prompt: "Titre ou chaîne")
+            .confirmationDialog(
+                "Se désabonner de « \(aDesabonner ?? "") » ?",
+                isPresented: Binding(get: { aDesabonner != nil }, set: { if !$0 { aDesabonner = nil } }),
+                titleVisibility: .visible
+            ) {
+                Button("Se désabonner", role: .destructive) {
+                    if let nom = aDesabonner { modele.desabonner(chaine: nom) }
+                }
+            } message: {
+                Text("La chaîne et toutes ses vidéos approuvées disparaissent, sur tous tes appareils. Pour la retrouver, il faudra la redemander au juge.")
+            }
             .toolbar {
                 Toggle(isOn: $montrerVues) {
                     Label("Afficher les vidéos vues", systemImage: "eye")
@@ -76,6 +99,11 @@ struct FilView: View {
             LigneVideo(titre: titre, chaine: chaine, miniature: miniature, date: date, vue: modele.estVue(id))
         }
         .swipeActions { BoutonVue(id: id) }
+        .contextMenu {
+            Button("Se désabonner de « \(chaine) »", systemImage: "person.crop.circle.badge.minus", role: .destructive) {
+                aDesabonner = chaine
+            }
+        }
     }
 }
 

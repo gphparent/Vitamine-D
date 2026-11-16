@@ -22,7 +22,8 @@
   <main>
     <section id="fil">
       <div class="barre"><h2>À voir</h2>
-        <span class="actions"><label class="bascule"><input type="checkbox" class="montrer-vues"> Afficher les vues</label>
+        <span class="actions"><input id="recherche" type="search" placeholder="Chercher : titre ou chaîne" autocomplete="off">
+        <label class="bascule"><input type="checkbox" class="montrer-vues"> Afficher les vues</label>
         <button id="rafraichir">Rafraîchir</button></span></div>
       <div id="fil-liste"></div>
     </section>
@@ -49,7 +50,7 @@
       <ul id="videos-approuvees" class="liste"></ul>
       <h2>Chaînes</h2>
       <ul id="chaines-approuvees" class="liste"></ul>
-      <p class="note">On peut retirer, jamais ajouter : seul le juge ouvre une porte.</p>
+      <p class="note">On peut retirer ou se désabonner, jamais ajouter : seul le juge ouvre une porte. Se désabonner d'une chaîne retire aussi toutes ses vidéos approuvées.</p>
     </section>
 
     <section id="reglages" hidden>
