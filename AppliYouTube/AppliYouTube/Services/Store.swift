@@ -7,8 +7,8 @@ struct Store {
     enum Cle: String {
         case chaines = "chaines.v1"
         case videos = "videos.v1"
-        case echanges = "echanges.v1"
-        case messagesAPI = "messages.api.v1"
+        case echanges = "echanges.v2"
+        case messagesAPI = "messages.api.v2"
         case retraits = "retraits.v1"
         case listes = "listes.v1"
         case vus = "vus.v1"

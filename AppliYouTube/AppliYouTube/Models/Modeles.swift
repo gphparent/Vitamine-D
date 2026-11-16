@@ -46,7 +46,16 @@ struct Echange: Codable, Identifiable, Hashable {
     let auteur: Auteur
     let texte: String
     var verdict: Verdict? = nil
+    var propositions: [Proposition]? = nil
     var date = Date()
+}
+
+/// Ce que le juge a trouve en cherchant sur YouTube. Une proposition n'ouvre
+/// rien : elle doit d'abord etre examinee, comme un lien colle a la main.
+struct Proposition: Codable, Hashable {
+    let url: String
+    let titre: String
+    let pourquoi: String
 }
 
 enum Verdict: String, Codable {

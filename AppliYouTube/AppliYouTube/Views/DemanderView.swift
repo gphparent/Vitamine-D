@@ -14,7 +14,7 @@ struct DemanderView: View {
                 ScrollView {
                     LazyVStack(spacing: 10) {
                         if modele.echanges.isEmpty {
-                            Text("Colle le lien d'une vidéo ou d'une chaîne et dis pourquoi tu veux la regarder.")
+                            Text("Colle le lien d'une vidéo, d'une liste ou d'une chaîne, ou demande au juge de chercher : « trouve-moi des conférences sur… »")
                                 .font(.callout)
                                 .foregroundStyle(.secondary)
                                 .multilineTextAlignment(.center)
@@ -48,7 +48,7 @@ struct DemanderView: View {
 
     private var barreSaisie: some View {
         HStack(alignment: .bottom, spacing: 8) {
-            TextField("Lien ou message", text: $saisie, axis: .vertical)
+            TextField("Lien, message ou recherche", text: $saisie, axis: .vertical)
                 .lineLimit(1...5)
                 .textFieldStyle(.roundedBorder)
                 .focused($focus)
@@ -69,6 +69,7 @@ struct DemanderView: View {
 
 private struct Bulle: View {
 
+    @Environment(AppModel.self) private var modele
     let echange: Echange
 
     var body: some View {
@@ -81,6 +82,23 @@ private struct Bulle: View {
                         .foregroundStyle(etiquette.couleur)
                 }
                 Text(echange.texte)
+                ForEach(echange.propositions ?? [], id: \.url) { proposition in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(proposition.titre).font(.subheadline.weight(.semibold))
+                        Text(proposition.pourquoi).font(.caption).foregroundStyle(.secondary)
+                        // Examiner soumet le lien comme s'il avait ete colle :
+                        // l'appli lit la page, puis le juge tranche sur pieces.
+                        Button("Examiner") {
+                            Task { await modele.demander("Examine : \(proposition.url)") }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(modele.enAttente)
+                    }
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                }
             }
             .padding(10)
             .background(fond, in: RoundedRectangle(cornerRadius: 14))

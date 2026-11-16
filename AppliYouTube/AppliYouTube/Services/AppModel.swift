@@ -158,7 +158,10 @@ final class AppModel {
             messagesAPI.append(["role": "assistant", "content": decision.contenuBrut] as [String: Any])
             appliquer(decision, fichesVideo: fichesVideo, fichesChaine: fichesChaine,
                       fichesListe: fichesListe)
-            ajouter(Echange(auteur: .juge, texte: decision.reponse, verdict: decision.verdict))
+            // Seuls les liens que l'appli sait lire sont proposes a l'examen.
+            let propositions = decision.propositions.filter { Self.contientUnLien($0.url) }
+            ajouter(Echange(auteur: .juge, texte: decision.reponse, verdict: decision.verdict,
+                            propositions: propositions.isEmpty ? nil : Array(propositions.prefix(5))))
         } catch {
             // Rien n'est ajoute a l'historique de l'API : le tour echoue
             // disparait, et la conversation reste valide pour le suivant.
@@ -173,6 +176,13 @@ final class AppModel {
         enregistrer()
     }
 
+    /// Un lien de video, de liste ou de chaine que l'appli sait lire.
+    private static func contientUnLien(_ texte: String) -> Bool {
+        if !AnalyseYouTube.identifiantsVideo(dans: texte).isEmpty { return true }
+        if !AnalyseYouTube.identifiantsListe(dans: texte).isEmpty { return true }
+        return !AnalyseYouTube.adressesChaine(dans: texte).isEmpty
+    }
+
     private func composer(_ texte: String, fichesVideo: [FicheVideo], fichesChaine: [FicheChaine],
                           fichesListe: [FicheListe]) -> String {
         let encodeur = JSONEncoder()
@@ -185,17 +195,14 @@ final class AppModel {
         for fiche in fichesVideo { parties.append("<fiche_video>\(json(fiche))</fiche_video>") }
         for fiche in fichesChaine { parties.append("<fiche_chaine>\(json(fiche))</fiche_chaine>") }
         for fiche in fichesListe { parties.append("<fiche_liste>\(json(fiche))</fiche_liste>") }
-        if fichesVideo.isEmpty && fichesChaine.isEmpty && fichesListe.isEmpty
-            && !(AnalyseYouTube.identifiantsVideo(dans: texte).isEmpty
-                 && AnalyseYouTube.adressesChaine(dans: texte).isEmpty
-                 && AnalyseYouTube.identifiantsListe(dans: texte).isEmpty) {
+        let aucuneFiche = fichesVideo.isEmpty && fichesChaine.isEmpty && fichesListe.isEmpty
+        if aucuneFiche && Self.contientUnLien(texte) {
             parties.append("<note>L'appli n'a pas pu lire le lien fourni.</note>")
         }
-        let etat = "Chaînes approuvées : "
-            + (chaines.isEmpty ? "aucune" : chaines.map(\.nom).joined(separator: ", "))
-            + ". Listes approuvées : "
-            + (listes.isEmpty ? "aucune" : listes.map(\.titre).joined(separator: ", "))
-            + ". Vidéos approuvées à l'unité : \(videos.count)."
+        let nomsChaines = chaines.isEmpty ? "aucune" : chaines.map(\.nom).joined(separator: ", ")
+        let nomsListes = listes.isEmpty ? "aucune" : listes.map(\.titre).joined(separator: ", ")
+        let etat = "Chaînes approuvées : \(nomsChaines). Listes approuvées : \(nomsListes). "
+            + "Vidéos approuvées à l'unité : \(videos.count)."
         parties.append("<etat>\(etat)</etat>")
         return parties.joined(separator: "\n\n")
     }

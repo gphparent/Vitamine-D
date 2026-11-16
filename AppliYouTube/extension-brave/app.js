@@ -5,6 +5,9 @@ import { synchroniser, documentVide, fusion } from "./partage.js";
 // Etat de l'appli, garde dans chrome.storage.local. Comme sur l'iPhone, rien
 // n'entre dans les listes approuvees autrement que par un verdict du juge.
 const TOUR_MAXIMUM = 30;
+// L'historique d'une version anterieure a ete produit sans l'outil de
+// recherche : le changement d'outils invaliderait ses blocs de reflexion.
+const VERSION_CONVERSATION = 2;
 let etat = {
   approbations: documentVide(),
   echanges: [],
@@ -27,12 +30,23 @@ async function demarrer() {
   etat = { ...etat, ...(await chrome.storage.local.get(null)) };
   // Un etat enregistre par une version anterieure n'a ni listes ni vus.
   etat.approbations = fusion(etat.approbations, documentVide());
+  if (etat.versionConversation !== VERSION_CONVERSATION) {
+    etat.versionConversation = VERSION_CONVERSATION;
+    etat.messagesAPI = [];
+    etat.echanges = [];
+  }
   for (const bouton of document.querySelectorAll("nav button")) {
     bouton.addEventListener("click", () => afficherOnglet(bouton.dataset.onglet));
   }
   $("#formulaire").addEventListener("submit", (e) => { e.preventDefault(); envoyer(); });
   $("#saisie").addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); envoyer(); }
+  });
+  // Examiner une proposition revient a coller son lien : l'appli lit la page,
+  // puis le juge tranche sur pieces.
+  $("#conversation").addEventListener("click", (e) => {
+    const bouton = e.target.closest("[data-examiner]");
+    if (bouton && !enAttente) envoyer(`Examine : ${bouton.dataset.examiner}`);
   });
   $("#nouvelle").addEventListener("click", () => nouvelleConversation());
   $("#fermer-lecteur").addEventListener("click", fermerLecteur);
@@ -105,10 +119,10 @@ async function rafraichirFil() {
 
 // MARK: Juge
 
-async function envoyer() {
-  const texte = $("#saisie").value.trim();
+async function envoyer(texteImpose) {
+  const texte = (texteImpose ?? $("#saisie").value).trim();
   if (!texte || enAttente) return;
-  $("#saisie").value = "";
+  if (texteImpose === undefined) $("#saisie").value = "";
   enAttente = true;
   if (etat.messagesAPI.length >= TOUR_MAXIMUM * 2) {
     nouvelleConversation("Conversation recommencée : elle était devenue trop longue.");
@@ -132,7 +146,11 @@ async function envoyer() {
     const decision = await juger(etat.cleAnthropic, etat.messagesAPI, nouveau);
     etat.messagesAPI.push(nouveau, { role: "assistant", content: decision.contenuBrut });
     const change = appliquer(decision, fiches);
-    etat.echanges.push({ auteur: "juge", texte: decision.reponse, verdict: decision.verdict, date: maintenant() });
+    // Seuls les liens que l'appli sait lire sont proposes a l'examen.
+    const propositions = decision.propositions.filter((p) => typeof p.url === "string"
+      && youtube.identifiantsVideo(p.url).length + youtube.adressesChaine(p.url).length
+         + youtube.identifiantsListe(p.url).length > 0).slice(0, 5);
+    etat.echanges.push({ auteur: "juge", texte: decision.reponse, verdict: decision.verdict, propositions, date: maintenant() });
     await enregistrer();
     if (change) { await synchroniserSiPossible(); await rafraichirFil(); }
   } catch (erreur) {
@@ -315,7 +333,7 @@ function rendreFil() {
 function rendreConversation() {
   const conteneur = $("#conversation");
   if (etat.echanges.length === 0) {
-    conteneur.innerHTML = `<p class="vide">Colle le lien d'une vidéo, d'une liste de lecture ou d'une chaîne et dis pourquoi tu veux la regarder.</p>`;
+    conteneur.innerHTML = `<p class="vide">Colle le lien d'une vidéo, d'une liste de lecture ou d'une chaîne, ou demande au juge de chercher : « trouve-moi des conférences sur… »</p>`;
   } else {
     const etiquettes = {
       approuve_video: ["Vidéo approuvée", "ok"],
@@ -336,6 +354,18 @@ function rendreConversation() {
       const p = document.createElement("p");
       p.textContent = e.texte;
       bulle.append(p);
+      for (const prop of e.propositions ?? []) {
+        const carte = document.createElement("div");
+        carte.className = "proposition";
+        carte.innerHTML = `<strong></strong><small></small><button></button>`;
+        carte.querySelector("strong").textContent = prop.titre;
+        carte.querySelector("small").textContent = prop.pourquoi;
+        const bouton = carte.querySelector("button");
+        bouton.textContent = "Examiner";
+        bouton.dataset.examiner = prop.url;
+        bouton.disabled = enAttente;
+        bulle.append(carte);
+      }
       return bulle;
     }));
   }

@@ -15,6 +15,7 @@ struct Juge {
         let videoID: String
         let chaineID: String
         let listeID: String
+        let propositions: [Proposition]
         /// Le contenu brut de la reponse, a renvoyer tel quel au tour suivant.
         let contenuBrut: Any
     }
@@ -56,10 +57,33 @@ struct Juge {
             "video_id": ["type": "string"],
             "chaine_id": ["type": "string"],
             "liste_id": ["type": "string"],
+            "propositions": [
+                "type": "array",
+                "items": [
+                    "type": "object",
+                    "properties": [
+                        "url": ["type": "string"],
+                        "titre": ["type": "string"],
+                        "pourquoi": ["type": "string"],
+                    ],
+                    "required": ["url", "titre", "pourquoi"],
+                    "additionalProperties": false,
+                ],
+            ],
         ],
-        "required": ["reponse", "verdict", "video_id", "chaine_id", "liste_id"],
+        "required": ["reponse", "verdict", "video_id", "chaine_id", "liste_id", "propositions"],
         "additionalProperties": false,
     ]
+
+    /// La recherche web, limitee a YouTube : c'est ainsi qu'on trouve des
+    /// chaines sans ouvrir YouTube. Declaree des le premier tour et jamais
+    /// modifiee, pour ne pas invalider l'historique.
+    static let outils: [[String: Any]] = [[
+        "type": "web_search_20260209",
+        "name": "web_search",
+        "max_uses": 5,
+        "allowed_domains": ["youtube.com"],
+    ]]
 
     private let session: URLSession
 
@@ -84,38 +108,52 @@ struct Juge {
         // d'elle-meme sur le modele de repli recommande.
         requete.setValue("server-side-fallback-2026-07-01", forHTTPHeaderField: "anthropic-beta")
 
-        let corps: [String: Any] = [
-            "model": Self.modele,
-            "max_tokens": 16000,
-            "fallbacks": "default",
-            "system": Self.consignes,
-            "output_config": [
-                "effort": "medium",
-                "format": ["type": "json_schema", "schema": Self.schema],
-            ],
-            "messages": historique + [nouveau as Any],
-        ]
-        requete.httpBody = try JSONSerialization.data(withJSONObject: corps)
+        // Une recherche longue peut s'interrompre (`pause_turn`) : on renvoie
+        // le tour en cours tel quel et le serveur reprend ou il en etait.
+        var contenu: [[String: Any]] = []
+        for _ in 0..<4 {
+            var messages = historique + [nouveau as Any]
+            if !contenu.isEmpty { messages.append(["role": "assistant", "content": contenu] as [String: Any]) }
+            let corps: [String: Any] = [
+                "model": Self.modele,
+                "max_tokens": 16000,
+                "fallbacks": "default",
+                "system": Self.consignes,
+                "tools": Self.outils,
+                "output_config": [
+                    "effort": "medium",
+                    "format": ["type": "json_schema", "schema": Self.schema],
+                ],
+                "messages": messages,
+            ]
+            requete.httpBody = try JSONSerialization.data(withJSONObject: corps)
 
-        let (donnees, reponse) = try await session.data(for: requete)
-        let code = (reponse as? HTTPURLResponse)?.statusCode ?? 0
-        let json = try? JSONSerialization.jsonObject(with: donnees) as? [String: Any]
+            let (donnees, reponse) = try await session.data(for: requete)
+            let code = (reponse as? HTTPURLResponse)?.statusCode ?? 0
+            let json = try? JSONSerialization.jsonObject(with: donnees) as? [String: Any]
 
-        switch code {
-        case 200: break
-        case 401, 403: throw Erreur.cleRefusee
-        case 429, 500...: throw Erreur.surcharge
-        default:
-            let message = (json?["error"] as? [String: Any])?["message"] as? String ?? ""
-            throw Erreur.http(code, message)
+            switch code {
+            case 200: break
+            case 401, 403: throw Erreur.cleRefusee
+            case 429, 500...: throw Erreur.surcharge
+            default:
+                let message = (json?["error"] as? [String: Any])?["message"] as? String ?? ""
+                throw Erreur.http(code, message)
+            }
+
+            guard let json, let blocs = json["content"] as? [[String: Any]] else {
+                throw Erreur.illisible
+            }
+            let arret = json["stop_reason"] as? String
+            if arret == "refusal" { throw Erreur.refus }
+            contenu += blocs
+            if arret != "pause_turn" { break }
         }
 
-        guard let json, let contenu = json["content"] as? [[String: Any]] else {
-            throw Erreur.illisible
-        }
-        if json["stop_reason"] as? String == "refusal" { throw Erreur.refus }
-
-        let texte = contenu
+        // La reponse est le texte qui suit la derniere recherche : ce qui
+        // precede n'est que le cheminement.
+        let derniereRecherche = contenu.lastIndex { ($0["type"] as? String)?.hasSuffix("_tool_result") == true }
+        let texte = contenu[(derniereRecherche.map { $0 + 1 } ?? 0)...]
             .filter { $0["type"] as? String == "text" }
             .compactMap { $0["text"] as? String }
             .joined()
@@ -130,6 +168,10 @@ struct Juge {
             videoID: sortie["video_id"] as? String ?? "",
             chaineID: sortie["chaine_id"] as? String ?? "",
             listeID: sortie["liste_id"] as? String ?? "",
+            propositions: (sortie["propositions"] as? [[String: Any]] ?? []).compactMap { p in
+                guard let url = p["url"] as? String, let titre = p["titre"] as? String else { return nil }
+                return Proposition(url: url, titre: titre, pourquoi: p["pourquoi"] as? String ?? "")
+            },
             contenuBrut: contenu)
     }
 }

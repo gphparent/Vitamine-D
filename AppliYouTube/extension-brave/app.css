@@ -84,6 +84,9 @@ main { max-width: 1100px; margin: 0 auto; padding: 20px 24px 40px; }
 .verdict.ok { color: var(--ok); }
 .verdict.non { color: var(--non); }
 .attente { color: var(--discret); font-style: italic; }
+.proposition { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; padding: 8px 10px; border: 1px solid var(--bordure); border-radius: 10px; }
+.proposition small { color: var(--discret); }
+.proposition button { align-self: flex-start; font-size: 13px; padding: 3px 10px; }
 #formulaire { display: flex; gap: 8px; align-items: flex-end; }
 textarea, input {
   font: inherit; color: var(--texte); background: var(--surface);

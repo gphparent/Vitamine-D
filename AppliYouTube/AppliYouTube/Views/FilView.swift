@@ -62,7 +62,7 @@ struct BoutonVue: View {
         } label: {
             Label(vue ? "À voir" : "Vue", systemImage: vue ? "arrow.uturn.backward" : "checkmark")
         }
-        .tint(vue ? .orange : .green)
+        .tint(vue ? Color.orange : Color.green)
     }
 }
 
