@@ -63,6 +63,8 @@ private struct LecteurWeb: UIViewRepresentable {
         configuration.allowsPictureInPictureMediaPlayback = true
         configuration.mediaTypesRequiringUserActionForPlayback = []
         configuration.userContentController.add(context.coordinator, name: "vue")
+        configuration.userContentController.addUserScript(WKUserScript(
+            source: Self.toujoursVisible, injectionTime: .atDocumentStart, forMainFrameOnly: false))
         let vue = WKWebView(frame: .zero, configuration: configuration)
         vue.navigationDelegate = context.coordinator
         vue.uiDelegate = context.coordinator
@@ -102,6 +104,16 @@ private struct LecteurWeb: UIViewRepresentable {
         """
         vue.loadHTMLString(html, baseURL: URL(string: Self.origine))
     }
+
+    /// Injecte aussi dans le cadre du lecteur : la page se dit toujours visible,
+    /// sinon YouTube met la video en pause quand l'ecran se verrouille.
+    static let toujoursVisible = """
+    Object.defineProperty(document, 'hidden', { get: () => false });
+    Object.defineProperty(document, 'visibilityState', { get: () => 'visible' });
+    Object.defineProperty(document, 'webkitVisibilityState', { get: () => 'visible' });
+    for (const t of ['visibilitychange', 'webkitvisibilitychange', 'pagehide', 'blur'])
+      window.addEventListener(t, (e) => e.stopImmediatePropagation(), true);
+    """
 
     /// Le protocole de messages du lecteur integre, celui qu'emploie l'API
     /// iframe de YouTube : on s'annonce, il repond par des `infoDelivery`
