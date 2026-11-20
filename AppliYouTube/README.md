@@ -66,6 +66,15 @@ settings → *Fine-grained tokens* → *Generate new token*, permission de compt
 `googlevideo.com` et `i.ytimg.com` (lecteur et miniatures), et, pour Brave,
 `www.youtube.com/feeds`, `/oembed` et `/watch` en lecture par l'extension.
 
+**Le vrai site YouTube dans Brave.** L'extension surveille aussi
+`www.youtube.com` : seule la recherche s'ouvre, et n'y paraissent que les
+chaînes, listes et vidéos approuvées. L'accueil, les abonnements, les Shorts,
+les pages de chaîne, les suggestions et les commentaires sont barrés ; une
+vidéo ne joue que si elle, sa liste ou sa chaîne est approuvée, et elle est
+marquée vue à 90 %. Pour s'en servir, le logiciel de blocage doit permettre
+`www.youtube.com` **dans Brave seulement** : ailleurs, rien ne le surveille.
+Les approbations se synchronisent en fond aux 15 minutes.
+
 ## Développement
 
 Le projet Xcode utilise des groupes synchronisés : tout fichier ajouté dans

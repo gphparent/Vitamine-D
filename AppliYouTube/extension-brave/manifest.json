@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Appli YouTube",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "YouTube, mais seulement ce qu'un juge a approuvé.",
   "icons": {
     "16": "icones/icone-16.png",
@@ -17,9 +17,14 @@
     }
   },
   "background": {
-    "service_worker": "arriere-plan.js"
+    "service_worker": "arriere-plan.js",
+    "type": "module"
   },
-  "permissions": ["storage", "declarativeNetRequest"],
+  "permissions": [
+    "storage",
+    "declarativeNetRequest",
+    "alarms"
+  ],
   "host_permissions": [
     "https://www.youtube.com/*",
     "https://www.youtube-nocookie.com/*",
@@ -28,9 +33,28 @@
     "https://api.github.com/*",
     "https://gist.githubusercontent.com/*"
   ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.youtube.com/*"
+      ],
+      "js": [
+        "regles-youtube.js",
+        "surveillance.js"
+      ],
+      "css": [
+        "surveillance.css"
+      ],
+      "run_at": "document_start"
+    }
+  ],
   "declarative_net_request": {
     "rule_resources": [
-      { "id": "referent", "enabled": true, "path": "regles.json" }
+      {
+        "id": "referent",
+        "enabled": true,
+        "path": "regles.json"
+      }
     ]
   },
   "content_security_policy": {

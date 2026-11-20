@@ -1,0 +1,42 @@
+/* Tout est cache tant que le gardien n'a pas tranche. */
+html:not([data-gardien="ok"]) ytd-app { visibility: hidden !important; }
+
+/* Ce qui ne sert qu'a s'egarer, sur toutes les pages. */
+#guide, #guide-button, ytd-mini-guide-renderer, tp-yt-app-drawer,
+ytd-masthead #end #buttons, ytd-masthead ytd-notification-topbar-button-renderer,
+#voice-search-button,
+#related, ytd-watch-next-secondary-results-renderer, #comments, ytd-merch-shelf-renderer,
+.ytp-endscreen-content, .ytp-ce-element, .ytp-autonav-endscreen-countdown-overlay,
+.ytp-suggested-action, .ytp-pause-overlay, .ytp-videowall-still,
+ytd-reel-shelf-renderer, ytd-shelf-renderer, ytd-horizontal-card-list-renderer,
+ytd-search-refinement-card-renderer, grid-shelf-view-model, ytm-shorts-lockup-view-model,
+ytd-chips-wrapper-renderer, ytd-search-header-renderer, ytd-ad-slot-renderer,
+ytd-promoted-sparkles-web-renderer, ytd-in-feed-ad-layout-renderer {
+  display: none !important;
+}
+
+/* Resultats de recherche : seulement ce que le gardien a marque. */
+ytd-search ytd-video-renderer:not([data-gardien="ok"]),
+ytd-search ytd-channel-renderer:not([data-gardien="ok"]),
+ytd-search ytd-playlist-renderer:not([data-gardien="ok"]),
+ytd-search ytd-radio-renderer,
+ytd-search ytd-movie-renderer,
+ytd-search yt-lockup-view-model:not([data-gardien="ok"]) {
+  display: none !important;
+}
+
+#gardien-barrage {
+  position: fixed; inset: 0; z-index: 2147483647;
+  display: grid; place-content: center; gap: 16px; text-align: center;
+  background: #111; color: #eee; font: 16px/1.4 system-ui, sans-serif;
+}
+#gardien-barrage h1 { font-size: 22px; margin: 0; }
+#gardien-barrage p { margin: 0; color: #aaa; max-width: 460px; }
+#gardien-barrage form { display: flex; gap: 8px; justify-content: center; }
+#gardien-barrage input { width: 320px; padding: 8px 12px; font-size: 16px; border-radius: 8px; border: 1px solid #444; background: #222; color: #eee; }
+#gardien-barrage button { padding: 8px 14px; font-size: 15px; border-radius: 8px; border: 0; background: #3a6; color: #fff; cursor: pointer; }
+#gardien-barrage button.secondaire { background: #333; }
+#gardien-note {
+  max-width: 700px; margin: 12px auto; padding: 10px 14px; border-radius: 8px;
+  background: #222; color: #bbb; font: 14px/1.4 system-ui, sans-serif;
+}

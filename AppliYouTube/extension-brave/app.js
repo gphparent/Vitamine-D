@@ -36,6 +36,14 @@ async function demarrer() {
     etat.messagesAPI = [];
     etat.echanges = [];
   }
+  // Le gardien de youtube.com et la synchronisation de fond ecrivent aussi
+  // les approbations : on les fusionne plutot que de les ecraser.
+  chrome.storage.onChanged.addListener((changements) => {
+    const nouveau = changements.approbations?.newValue;
+    if (!nouveau || JSON.stringify(nouveau) === JSON.stringify(etat.approbations)) return;
+    etat.approbations = fusion(etat.approbations, nouveau);
+    rendre();
+  });
   for (const bouton of document.querySelectorAll("nav button")) {
     bouton.addEventListener("click", () => afficherOnglet(bouton.dataset.onglet));
   }
