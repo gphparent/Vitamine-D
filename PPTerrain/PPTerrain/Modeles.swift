@@ -5,7 +5,14 @@ import Foundation
 struct Semaine: Codable {
     let genereLe: Date
     let photographe: String?
+    /// Le point de départ inscrit dans Réglages (le milieu de la rue) ; absent des copies d'avant le 25 nov.
+    let depart: Point?
     let rendezVous: [RendezVous]
+
+    struct Point: Codable, Hashable {
+        let latitude: Double
+        let longitude: Double
+    }
 }
 
 struct RendezVous: Codable, Identifiable, Hashable {
@@ -13,6 +20,9 @@ struct RendezVous: Codable, Identifiable, Hashable {
     let statut: String
     let debut: Date?
     let fin: Date?
+    /// « Arrivé » et « Terminé », touchés dans la fiche.
+    let arriveAt: Date?
+    let termineAt: Date?
     let adresse: String?
     let unite: String?
     let ville: String?

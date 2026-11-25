@@ -8,6 +8,9 @@ struct FicheView: View {
     @Environment(\.openURL) private var ouvrir
     @State private var apercu: URL?
 
+    /// La séance telle que la dernière synchronisation l'a ramenée (« Arrivé » et « Terminé » compris).
+    private var actuelle: RendezVous { magasin.rendezVous.first { $0.id == seance.id } ?? seance }
+
     var body: some View {
         List {
             Section {
@@ -21,9 +24,17 @@ struct FicheView: View {
                         Text("Heure à confirmer").font(.subheadline.bold()).foregroundStyle(.orange)
                     }
                 }
+                if let route = magasin.routes[seance.id], let depart = magasin.depart(pour: seance), magasin.arrivee(de: actuelle) == nil {
+                    Label("Partir à \(Format.heure(depart)) : \(route.minutes) min de route, \(Int(route.km.rounded())) km", systemImage: "clock")
+                        .font(.subheadline)
+                }
                 if let lien = seance.lienPlans {
                     Button { ouvrir(lien) } label: { Label("Itinéraire dans Google Maps", systemImage: "car.fill") }
                 }
+            }
+
+            if !seance.enAttente, let debut = seance.debut, Format.calendrier.isDateInToday(debut) {
+                SurPlace(seance: actuelle)
             }
 
             Section("Accès") {
@@ -142,5 +153,65 @@ private struct LignePiece: View {
         if nom.hasSuffix(".pdf") { return "doc.richtext" }
         if [".jpg", ".jpeg", ".png", ".heic", ".webp"].contains(where: nom.hasSuffix) { return "photo" }
         return "doc"
+    }
+}
+
+/// « Arrivé » puis « Terminé » (Guillaume, 25 nov.) : la coordination voit où en est la journée sans appeler,
+/// la durée réelle de la séance est notée, et le trajet s'inscrit au carnet de kilométrage. Sans réseau, le geste
+/// attend sur le iPhone et part à la prochaine synchronisation.
+private struct SurPlace: View {
+    let seance: RendezVous
+
+    @Environment(Magasin.self) private var magasin
+    @State private var envoi = false
+
+    var body: some View {
+        Section("Sur place") {
+            if let fin = magasin.fin(de: seance) {
+                Label("Terminé à \(Format.heure(fin))", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                if let arrivee = magasin.arrivee(de: seance) {
+                    Text("Arrivé à \(Format.heure(arrivee)), \(Int(fin.timeIntervalSince(arrivee) / 60)) min sur place.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            } else if let arrivee = magasin.arrivee(de: seance) {
+                Label("Arrivé à \(Format.heure(arrivee))", systemImage: "mappin.circle.fill")
+                Button {
+                    geste { await magasin.marquerFin(seance) }
+                } label: {
+                    Label("Terminé", systemImage: "checkmark.circle").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.green)
+                .disabled(envoi)
+            } else {
+                Button {
+                    geste { await magasin.marquerArrivee(seance) }
+                } label: {
+                    Label("Arrivé", systemImage: "mappin.and.ellipse").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(envoi)
+                if let route = magasin.routes[seance.id] {
+                    Text("\(Int(route.km.rounded())) km iront au carnet de kilométrage.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if magasin.gestes.contains(where: { $0.rendezVous == seance.id }) {
+                Label("En attente de réseau : sera envoyé plus tard.", systemImage: "wifi.slash")
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+            }
+        }
+    }
+
+    private func geste(_ action: @escaping () async -> Void) {
+        envoi = true
+        Task {
+            await action()
+            envoi = false
+        }
     }
 }

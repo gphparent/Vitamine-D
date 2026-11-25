@@ -55,6 +55,8 @@ struct ListeView: View {
 struct LigneSeance: View {
     let seance: RendezVous
 
+    @Environment(Magasin.self) private var magasin
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Text(seance.debut.map(Format.heure) ?? "")
@@ -65,6 +67,11 @@ struct LigneSeance: View {
                 if let forfait = seance.forfait { Text(forfait).font(.subheadline).foregroundStyle(.secondary) }
                 HStack(spacing: 8) {
                     if seance.enAttente { Text("À confirmer").font(.caption.bold()).foregroundStyle(.orange) }
+                    if let fin = magasin.fin(de: seance) {
+                        Label("Terminé \(Format.heure(fin))", systemImage: "checkmark.circle.fill").font(.caption).foregroundStyle(.green)
+                    } else if let depart = magasin.depart(pour: seance), !seance.enAttente, magasin.arrivee(de: seance) == nil {
+                        Label("Partir \(Format.heure(depart))", systemImage: "clock").font(.caption).foregroundStyle(.secondary)
+                    }
                     if seance.surPlace == false { Label("Personne sur place", systemImage: "key").font(.caption).foregroundStyle(.secondary) }
                     if !seance.pieces.isEmpty { Label("\(seance.pieces.count)", systemImage: "paperclip").font(.caption).foregroundStyle(.secondary) }
                 }

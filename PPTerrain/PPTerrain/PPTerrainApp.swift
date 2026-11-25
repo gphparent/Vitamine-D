@@ -1,9 +1,14 @@
 import SwiftUI
+import UserNotifications
 
 @main
 struct PPTerrainApp: App {
     @State private var magasin = Magasin()
     @Environment(\.scenePhase) private var phase
+
+    init() {
+        UNUserNotificationCenter.current().delegate = DelegueAvis.partage
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -18,9 +23,13 @@ struct PPTerrainApp: App {
                     Task { await magasin.connecter(code: code) }
                 }
         }
-        // Chaque retour dans l'appli, avec du réseau, met la semaine à jour.
+        // Chaque retour dans l'appli, avec du réseau, met la semaine à jour ; puis les avis de départ et la tuile.
         .onChange(of: phase) { _, nouvelle in
-            if nouvelle == .active { Task { await magasin.synchroniser() } }
+            guard nouvelle == .active else { return }
+            Task {
+                if magasin.connecte { await AvisDepart.demanderPermission() }
+                await magasin.synchroniser()
+            }
         }
     }
 }

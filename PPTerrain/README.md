@@ -14,10 +14,19 @@ téléphone** pour les endroits sans réseau.
 
 - **Séances.** Celles du photographe connecté, par jour. Chaque retour dans
   l'appli, avec du réseau, remplace la copie gardée sur le téléphone.
-- **Fiche.** Heure, adresse et itinéraire dans Plans, contacts (appel, texto),
+- **Fiche.** Heure, adresse et itinéraire dans Google Maps, contacts (appel, texto),
   commande, précisions, accès (personne sur place, code reçu ou non).
 - **Fichiers et notes.** Ceux déposés sur le rendez-vous dans l'admin, téléchargés
   d'avance et ouverts sans réseau.
+- **Avis de départ.** Le iPhone calcule la vraie route avec Plans (circulation
+  prévue), depuis le point de départ de Réglages ou la séance d'avant, et programme
+  ses propres avis : 30 minutes avant de partir, à l'heure de partir, puis pour
+  chaque séance suivante. Aucune permission de localisation.
+- **Tuile.** La séance en cours sur l'écran verrouillé et dans l'île dynamique
+  (extension `PPTerrainActivite`, code commun dans `Partage/`). Apple ne la laisse
+  paraître qu'appli ouverte : au toucher d'un avis, ou à l'ouverture.
+- **Arrivé et Terminé.** Notés dans l'admin ; le trajet part au carnet de
+  kilométrage (Réglages, « Kilométrage »). Sans réseau, le geste attend.
 
 ## Ce qu'elle ne fait jamais
 
@@ -40,7 +49,8 @@ s'efface à sa prochaine ouverture avec du réseau.
 
 `gphparent/pp-rendez-vous`, `app/Http/Controllers/Api/TerrainController.php` :
 `POST /api/terrain/connexion`, `GET /api/terrain/rendez-vous`,
-`GET /api/terrain/pieces/{id}`, `POST /api/terrain/deconnexion`.
+`GET /api/terrain/pieces/{id}`, `POST /api/terrain/rendez-vous/{id}/arrivee`,
+`POST /api/terrain/rendez-vous/{id}/termine`, `POST /api/terrain/deconnexion`.
 
 ## Développement
 

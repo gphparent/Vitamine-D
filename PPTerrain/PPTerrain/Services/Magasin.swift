@@ -1,6 +1,18 @@
+import CoreLocation
 import Foundation
 import Observation
 import UIKit
+
+/// « Arrivé » ou « Terminé », gardé sur le iPhone tant que le serveur ne l'a pas reçu.
+struct Geste: Codable, Hashable {
+    enum Sorte: String, Codable { case arrivee, termine }
+
+    let rendezVous: Int
+    let sorte: Sorte
+    let a: Date
+    var km: Double?
+    var minutes: Int?
+}
 
 /// La semaine et ses fichiers, gardés sur le iPhone pour les endroits sans réseau.
 /// Chaque synchronisation remplace tout : ce que le serveur ne liste plus s'efface d'ici aussi.
@@ -15,8 +27,15 @@ final class Magasin {
     private(set) var erreur: String?
     private(set) var connecte: Bool
 
+    /// La vraie route de chaque séance confirmée d'aujourd'hui et de demain, depuis la maison ou la séance d'avant.
+    private(set) var routes: [Int: Trajet] = [:]
+
+    /// « Arrivé » et « Terminé » pas encore reçus par le serveur (sans réseau) : ils partent à la prochaine synchronisation.
+    private(set) var gestes: [Geste] = []
+
     private let dossier: URL
     private let session: URLSession
+    private let itineraires = Itineraires()
 
     init(dossier: URL? = nil, session: URLSession = .shared) {
         let base = dossier ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("PPTerrain", isDirectory: true)
@@ -26,9 +45,11 @@ final class Magasin {
         try? FileManager.default.createDirectory(at: fichiers, withIntermediateDirectories: true)
         exclureDeLaSauvegarde()
         semaine = (try? Data(contentsOf: copie)).flatMap { try? Format.decodeur.decode(Semaine.self, from: $0) }
+        gestes = (try? Data(contentsOf: fichierGestes)).flatMap { try? Format.decodeur.decode([Geste].self, from: $0) } ?? []
     }
 
     private var copie: URL { dossier.appendingPathComponent("semaine.json") }
+    private var fichierGestes: URL { dossier.appendingPathComponent("gestes.json") }
     private var fichiers: URL { dossier.appendingPathComponent("fichiers", isDirectory: true) }
 
     var rendezVous: [RendezVous] { semaine?.rendezVous ?? [] }
@@ -82,7 +103,13 @@ final class Magasin {
         try? FileManager.default.removeItem(at: dossier)
         try? FileManager.default.createDirectory(at: fichiers, withIntermediateDirectories: true)
         semaine = nil
+        gestes = []
+        routes = [:]
         connecte = false
+        Task {
+            await AvisDepart.programmer([])
+            await Tuile.afficher(nil, jour: .now)
+        }
     }
 
     // MARK: Synchronisation
@@ -91,6 +118,11 @@ final class Magasin {
         guard let jeton = Trousseau.lire(), !enCours else { return }
         enCours = true
         defer { enCours = false }
+
+        // Les gestes faits sans réseau d'abord : la semaine qui revient les contient alors déjà.
+        await envoyerGestes(jeton: jeton)
+        // Hors ligne aussi, les avis et la tuile se refont avec la copie gardée.
+        defer { Task { await preparerJournee() } }
 
         var requete = URLRequest(url: Self.serveur.appendingPathComponent("api/terrain/rendez-vous"))
         requete.setValue("Bearer \(jeton)", forHTTPHeaderField: "Authorization")
@@ -121,6 +153,126 @@ final class Magasin {
         } catch {
             erreur = "Hors ligne. Vous voyez la dernière copie."
         }
+    }
+
+    // MARK: Sur le terrain
+
+    func arrivee(de seance: RendezVous) -> Date? {
+        seance.arriveAt ?? gestes.last(where: { $0.rendezVous == seance.id && $0.sorte == .arrivee })?.a
+    }
+
+    func fin(de seance: RendezVous) -> Date? {
+        seance.termineAt ?? gestes.last(where: { $0.rendezVous == seance.id && $0.sorte == .termine })?.a
+    }
+
+    /// L'heure où partir pour cette séance, quand la route est connue.
+    func depart(pour seance: RendezVous) -> Date? {
+        guard let debut = seance.debut, let route = routes[seance.id] else { return nil }
+        return Planification.depart(debut: debut, routeMinutes: route.minutes)
+    }
+
+    /// « Arrivé » : l'heure, et le trajet au carnet de kilométrage (la route depuis la maison ou la séance d'avant).
+    func marquerArrivee(_ seance: RendezVous) async {
+        let route = routes[seance.id]
+        await ajouter(Geste(rendezVous: seance.id, sorte: .arrivee, a: .now, km: route?.km, minutes: route?.minutes))
+    }
+
+    /// « Terminé » : l'heure ; après la dernière séance de la journée, le retour à la maison part aussi au carnet.
+    func marquerFin(_ seance: RendezVous) async {
+        var geste = Geste(rendezVous: seance.id, sorte: .termine, a: .now)
+        let journee = Planification.journee(rendezVous, le: seance.debut ?? .now)
+
+        if journee.last?.id == seance.id, let maison = semaine?.depart, let ici = await itineraires.coordonnees(de: seance),
+           let retour = await itineraires.trajet(de: ici, vers: CLLocationCoordinate2D(latitude: maison.latitude, longitude: maison.longitude)) {
+            geste.km = retour.km
+            geste.minutes = retour.minutes
+        }
+
+        await ajouter(geste)
+    }
+
+    private func ajouter(_ geste: Geste) async {
+        gestes.append(geste)
+        garderGestes()
+        await preparerJournee()
+        if let jeton = Trousseau.lire() { await envoyerGestes(jeton: jeton) }
+    }
+
+    private func garderGestes() {
+        if let donnees = try? Format.encodeur.encode(gestes) {
+            try? donnees.write(to: fichierGestes, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        }
+    }
+
+    /// Un à un, dans l'ordre ; le premier qui échoue faute de réseau garde les suivants pour plus tard.
+    private func envoyerGestes(jeton: String) async {
+        while let geste = gestes.first {
+            var requete = URLRequest(url: Self.serveur.appendingPathComponent("api/terrain/rendez-vous/\(geste.rendezVous)/\(geste.sorte.rawValue)"))
+            requete.httpMethod = "POST"
+            requete.setValue("Bearer \(jeton)", forHTTPHeaderField: "Authorization")
+            requete.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            requete.setValue("application/json", forHTTPHeaderField: "Accept")
+            requete.timeoutInterval = 15
+
+            var corps: [String: Any] = ["a": ISO8601DateFormatter().string(from: geste.a)]
+            switch geste.sorte {
+            case .arrivee:
+                if let km = geste.km { corps["km"] = (km * 10).rounded() / 10 }
+                if let minutes = geste.minutes { corps["minutes"] = minutes }
+            case .termine:
+                if let km = geste.km { corps["retour_km"] = (km * 10).rounded() / 10 }
+                if let minutes = geste.minutes { corps["retour_minutes"] = minutes }
+            }
+            requete.httpBody = try? JSONSerialization.data(withJSONObject: corps)
+
+            guard let resultat = try? await session.data(for: requete) else { return }
+            let statut = (resultat.1 as? HTTPURLResponse)?.statusCode ?? 0
+            // Réussi, ou refusé pour de bon (séance retirée) : il ne repartira pas. Le reste attend le prochain essai.
+            let definitif = statut == 200 || ((400..<500).contains(statut) && statut != 401 && statut != 429)
+            guard definitif else { return }
+            gestes.removeFirst()
+            garderGestes()
+        }
+    }
+
+    /// Les routes d'aujourd'hui et de demain, les avis de départ et la tuile, refaits à chaque retour dans l'appli.
+    func preparerJournee() async {
+        let maintenant = Date.now
+        let jours = [maintenant, Format.calendrier.date(byAdding: .day, value: 1, to: maintenant)!]
+        var nouvelles: [Int: Trajet] = [:]
+        var rappels: [Rappel] = []
+
+        for jour in jours {
+            let journee = Planification.journee(rendezVous, le: jour)
+            var origine = semaine?.depart.map { CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude) }
+
+            for seance in journee {
+                let ici = await itineraires.coordonnees(de: seance)
+                if let depuis = origine, let ici, let debut = seance.debut {
+                    // Partir environ une heure avant suffit pour que Plans prévoie la circulation du bon moment.
+                    nouvelles[seance.id] = await itineraires.trajet(de: depuis, vers: ici, partant: debut.addingTimeInterval(-3600)) ?? routes[seance.id]
+                } else if let connue = routes[seance.id] {
+                    nouvelles[seance.id] = connue
+                }
+                origine = ici ?? origine
+            }
+
+            let faites = Set(journee.filter { arrivee(de: $0) != nil || fin(de: $0) != nil }.map(\.id))
+            rappels += Planification.rappels(journee: journee, routes: nouvelles, faites: faites, maintenant: maintenant)
+        }
+
+        routes = nouvelles
+        await AvisDepart.programmer(rappels, maintenant: maintenant)
+
+        let aujourdhui = Planification.journee(rendezVous, le: maintenant)
+        var arrivees: [Int: Date] = [:]
+        var fins: [Int: Date] = [:]
+        for seance in aujourdhui {
+            arrivees[seance.id] = arrivee(de: seance)
+            fins[seance.id] = fin(de: seance)
+        }
+        let etat = Planification.etat(journee: aujourdhui, routes: routes, arrivees: arrivees, fins: fins, maintenant: maintenant)
+        await Tuile.afficher(etat, jour: maintenant)
     }
 
     private func telechargerFichiers(_ semaine: Semaine, jeton: String) async {
