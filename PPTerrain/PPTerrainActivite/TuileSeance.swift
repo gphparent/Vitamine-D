@@ -28,8 +28,11 @@ struct TuileSeance: Widget {
                         .font(.headline.monospacedDigit())
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    Text(contexte.state.titre)
-                        .font(.subheadline)
+                    VStack(spacing: 8) {
+                        Text(contexte.state.titre)
+                            .font(.subheadline)
+                        BoutonGeste(etat: contexte.state)
+                    }
                 }
             } compactLeading: {
                 Image(systemName: contexte.state.icone)
@@ -41,13 +44,28 @@ struct TuileSeance: Widget {
                 Image(systemName: contexte.state.icone)
             }
         }
+        // CarPlay (iOS 26) et la montre prennent la petite version.
+        .supplementalActivityFamilies([.small])
     }
 }
 
 struct EcranVerrouille: View {
     let etat: ActiviteSeance.ContentState
 
+    @Environment(\.activityFamily) private var famille
+
     var body: some View {
+        if famille == .small {
+            Petite(etat: etat)
+        } else {
+            VStack(spacing: 10) {
+                ligne
+                BoutonGeste(etat: etat)
+            }
+        }
+    }
+
+    private var ligne: some View {
         HStack(alignment: .center, spacing: 14) {
             Image(systemName: etat.icone)
                 .font(.title2)
@@ -67,6 +85,41 @@ struct EcranVerrouille: View {
                 .foregroundStyle(.white)
                 .multilineTextAlignment(.trailing)
                 .frame(maxWidth: 90)
+        }
+    }
+}
+
+/// Dans CarPlay : de quoi lire d'un coup d'œil en conduisant, la ville, le compte à rebours et le bouton.
+struct Petite: View {
+    let etat: ActiviteSeance.ContentState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label(etat.ville, systemImage: etat.icone)
+                .font(.headline)
+                .lineLimit(1)
+            Compte(cible: etat.cible)
+                .font(.title3.weight(.semibold).monospacedDigit())
+            BoutonGeste(etat: etat)
+        }
+        .foregroundStyle(.white)
+    }
+}
+
+/// « Arrivé » ou « Terminé », touché sans déverrouiller ni ouvrir l'appli.
+struct BoutonGeste: View {
+    let etat: ActiviteSeance.ContentState
+
+    var body: some View {
+        if let seance = etat.seance {
+            Button(intent: GesteTuile(seance: seance, termine: etat.etape == .surPlace)) {
+                Label(etat.bouton, systemImage: etat.iconeBouton)
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(etat.etape == .surPlace ? Color.green : Color(red: 0.93, green: 0.74, blue: 0.19))
+            .foregroundStyle(etat.etape == .surPlace ? Color.white : Color.black)
         }
     }
 }

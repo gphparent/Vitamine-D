@@ -3,11 +3,13 @@ import UserNotifications
 
 @main
 struct PPTerrainApp: App {
-    @State private var magasin = Magasin()
+    @State private var magasin = Magasin.partage
     @Environment(\.scenePhase) private var phase
 
     init() {
         UNUserNotificationCenter.current().delegate = DelegueAvis.partage
+        // Relancée en arrière-plan par le GPS, l'appli doit avoir de quoi recevoir l'entrée ou la sortie.
+        _ = Presence.partage
     }
 
     var body: some Scene {
@@ -27,7 +29,10 @@ struct PPTerrainApp: App {
         .onChange(of: phase) { _, nouvelle in
             guard nouvelle == .active else { return }
             Task {
-                if magasin.connecte { await AvisDepart.demanderPermission() }
+                if magasin.connecte {
+                    await AvisDepart.demanderPermission()
+                    Presence.partage.demanderPermission()
+                }
                 await magasin.synchroniser()
             }
         }

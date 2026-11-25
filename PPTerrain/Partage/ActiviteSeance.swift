@@ -23,6 +23,12 @@ struct ActiviteSeance: ActivityAttributes {
         var routeMinutes: Int?
         /// Les séances qui suivent celle-ci aujourd'hui.
         var ensuite: Int
+        /// Pour le bouton de la tuile.
+        var seance: Int? = nil
+
+        /// Le geste qui vient : « Arrivé » tant qu'on n'est pas sur place, puis « Terminé ».
+        var bouton: String { etape == .surPlace ? "Terminé" : "Arrivé" }
+        var iconeBouton: String { etape == .surPlace ? "checkmark.circle" : "mappin.and.ellipse" }
 
         /// Le moment vers lequel compte la tuile.
         var cible: Date {

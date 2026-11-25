@@ -8,8 +8,8 @@ struct Trajet: Codable, Hashable {
 }
 
 /// La vraie route d'un point à l'autre, par Apple Plans (Guillaume, 25 nov.) : le serveur, lui, ne fait qu'estimer
-/// d'un centre de ville à l'autre. Aucune permission de localisation : on part du point de départ inscrit dans
-/// Réglages ou de la séance d'avant, jamais d'où se trouve le téléphone.
+/// d'un centre de ville à l'autre. La route part du point de départ inscrit dans Réglages ou de la séance d'avant,
+/// jamais d'où se trouve le téléphone : c'est elle qui donne les kilomètres du carnet.
 @MainActor
 final class Itineraires {
     private var lieux: [Int: CLLocationCoordinate2D] = [:]

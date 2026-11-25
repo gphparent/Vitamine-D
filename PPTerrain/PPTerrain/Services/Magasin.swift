@@ -22,6 +22,9 @@ final class Magasin {
 
     static let serveur = URL(string: "https://reserver.parentphotographe.com")!
 
+    /// Le même pour l'appli, le GPS et les boutons de la tuile, qui peuvent la réveiller en arrière-plan.
+    static let partage = Magasin()
+
     private(set) var semaine: Semaine?
     private(set) var enCours = false
     private(set) var erreur: String?
@@ -46,10 +49,13 @@ final class Magasin {
         exclureDeLaSauvegarde()
         semaine = (try? Data(contentsOf: copie)).flatMap { try? Format.decodeur.decode(Semaine.self, from: $0) }
         gestes = (try? Data(contentsOf: fichierGestes)).flatMap { try? Format.decodeur.decode([Geste].self, from: $0) } ?? []
+        // Gardées sur le téléphone : réveillée par le GPS, l'appli a les kilomètres sans refaire les routes.
+        routes = (try? Data(contentsOf: fichierRoutes)).flatMap { try? Format.decodeur.decode([Int: Trajet].self, from: $0) } ?? [:]
     }
 
     private var copie: URL { dossier.appendingPathComponent("semaine.json") }
     private var fichierGestes: URL { dossier.appendingPathComponent("gestes.json") }
+    private var fichierRoutes: URL { dossier.appendingPathComponent("routes.json") }
     private var fichiers: URL { dossier.appendingPathComponent("fichiers", isDirectory: true) }
 
     var rendezVous: [RendezVous] { semaine?.rendezVous ?? [] }
@@ -106,6 +112,7 @@ final class Magasin {
         gestes = []
         routes = [:]
         connecte = false
+        Presence.partage.surveiller([])
         Task {
             await AvisDepart.programmer([])
             await Tuile.afficher(nil, jour: .now)
@@ -191,6 +198,32 @@ final class Magasin {
         await ajouter(geste)
     }
 
+    /// Le bouton de la tuile : rien si le geste est déjà fait (touché deux fois, ou le GPS l'a devancé).
+    func toucher(seance id: Int, termine: Bool) async {
+        guard let seance = rendezVous.first(where: { $0.id == id }) else { return }
+        if termine {
+            if arrivee(de: seance) != nil, fin(de: seance) == nil { await marquerFin(seance) }
+        } else if arrivee(de: seance) == nil {
+            await marquerArrivee(seance)
+        }
+    }
+
+    /// Le GPS est dans le cercle de la séance.
+    func entree(_ id: Int) async {
+        guard let seance = rendezVous.first(where: { $0.id == id }),
+              Planification.arriveeAuto(seance, arrivee: arrivee(de: seance), fin: fin(de: seance), maintenant: .now) else { return }
+        await marquerArrivee(seance)
+        await AvisDepart.signaler(id: "arrivee-\(id)", titre: "Arrivé à \(seance.ville ?? "la séance")", corps: "Noté par le GPS. La fin se notera au départ.")
+    }
+
+    /// Le GPS vient de sortir du cercle.
+    func sortie(_ id: Int) async {
+        guard let seance = rendezVous.first(where: { $0.id == id }),
+              Planification.finAuto(seance, arrivee: arrivee(de: seance), fin: fin(de: seance), maintenant: .now) else { return }
+        await marquerFin(seance)
+        await AvisDepart.signaler(id: "fin-\(id)", titre: "Séance terminée", corps: "Notée par le GPS à \(Format.heure(.now)).")
+    }
+
     private func ajouter(_ geste: Geste) async {
         gestes.append(geste)
         garderGestes()
@@ -241,6 +274,7 @@ final class Magasin {
         let jours = [maintenant, Format.calendrier.date(byAdding: .day, value: 1, to: maintenant)!]
         var nouvelles: [Int: Trajet] = [:]
         var rappels: [Rappel] = []
+        var cercles: [(id: Int, centre: CLLocationCoordinate2D)] = []
 
         for jour in jours {
             let journee = Planification.journee(rendezVous, le: jour)
@@ -254,6 +288,7 @@ final class Magasin {
                 } else if let connue = routes[seance.id] {
                     nouvelles[seance.id] = connue
                 }
+                if let ici, fin(de: seance) == nil { cercles.append((id: seance.id, centre: ici)) }
                 origine = ici ?? origine
             }
 
@@ -262,6 +297,10 @@ final class Magasin {
         }
 
         routes = nouvelles
+        if let donnees = try? Format.encodeur.encode(nouvelles) {
+            try? donnees.write(to: fichierRoutes, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        }
+        Presence.partage.surveiller(cercles)
         await AvisDepart.programmer(rappels, maintenant: maintenant)
 
         let aujourdhui = Planification.journee(rendezVous, le: maintenant)

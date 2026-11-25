@@ -14,5 +14,10 @@
 			</array>
 		</dict>
 	</array>
+	<!-- L'arrivée et la fin des séances notées par le GPS (Presence.swift). -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>PP Terrain note l’heure de votre arrivée et de votre départ des séances. Aucune position n’est envoyée.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Choisissez « Toujours » : PP Terrain note l’heure de votre arrivée et de votre départ des séances, même fermée, pour le suivi et le carnet de kilométrage. Aucune position n’est envoyée.</string>
 </dict>
 </plist>

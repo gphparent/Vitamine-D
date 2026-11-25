@@ -80,7 +80,7 @@ enum Planification {
         let route = routes[courante.id]
 
         if arrivees[courante.id] != nil {
-            return ActiviteSeance.ContentState(etape: .surPlace, ville: courante.ville ?? "", heureSeance: heure, depart: nil, finPrevue: fin(courante), routeMinutes: nil, ensuite: restantes.count - 1)
+            return ActiviteSeance.ContentState(etape: .surPlace, ville: courante.ville ?? "", heureSeance: heure, depart: nil, finPrevue: fin(courante), routeMinutes: nil, ensuite: restantes.count - 1, seance: courante.id)
         }
 
         let partir = route.map { depart(debut: heure, routeMinutes: $0.minutes) }
@@ -91,7 +91,22 @@ enum Planification {
             depart: partir,
             finPrevue: fin(courante),
             routeMinutes: route?.minutes,
-            ensuite: restantes.count - 1
+            ensuite: restantes.count - 1,
+            seance: courante.id
         )
+    }
+
+    /// Le GPS note l'arrivée en entrant dans le cercle de la séance, d'une heure avant jusqu'à une heure après la fin
+    /// prévue : passer devant la veille ou au retour d'une autre séance ne compte pas.
+    static func arriveeAuto(_ seance: RendezVous, arrivee: Date?, fin terminee: Date?, maintenant: Date) -> Bool {
+        guard arrivee == nil, terminee == nil, !seance.enAttente, let debut = seance.debut else { return false }
+        return maintenant >= debut.addingTimeInterval(-3600) && maintenant <= fin(seance).addingTimeInterval(3600)
+    }
+
+    /// Et la fin en sortant du cercle, au moins 10 minutes après l'arrivée : un aller-retour au camion ne termine rien,
+    /// le cercle (150 m) couvrant le terrain.
+    static func finAuto(_ seance: RendezVous, arrivee: Date?, fin terminee: Date?, maintenant: Date) -> Bool {
+        guard let arrivee, terminee == nil else { return false }
+        return maintenant >= arrivee.addingTimeInterval(10 * 60) && maintenant <= fin(seance).addingTimeInterval(3 * 3600)
     }
 }

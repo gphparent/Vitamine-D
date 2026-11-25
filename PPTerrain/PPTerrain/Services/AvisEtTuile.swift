@@ -28,6 +28,14 @@ enum AvisDepart {
             try? await centre.add(demande)
         }
     }
+
+    /// Tout de suite et sans son : le GPS vient de noter un geste, pour qu'on sache que c'est fait.
+    static func signaler(id: String, titre: String, corps: String) async {
+        let contenu = UNMutableNotificationContent()
+        contenu.title = titre
+        contenu.body = corps
+        try? await UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "pp-gps-" + id, content: contenu, trigger: nil))
+    }
 }
 
 /// Montre l'avis même quand l'appli est ouverte ; le toucher ouvre l'appli, qui fait alors paraître la tuile.

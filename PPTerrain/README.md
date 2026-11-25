@@ -21,12 +21,18 @@ téléphone** pour les endroits sans réseau.
 - **Avis de départ.** Le iPhone calcule la vraie route avec Plans (circulation
   prévue), depuis le point de départ de Réglages ou la séance d'avant, et programme
   ses propres avis : 30 minutes avant de partir, à l'heure de partir, puis pour
-  chaque séance suivante. Aucune permission de localisation.
-- **Tuile.** La séance en cours sur l'écran verrouillé et dans l'île dynamique
-  (extension `PPTerrainActivite`, code commun dans `Partage/`). Apple ne la laisse
-  paraître qu'appli ouverte : au toucher d'un avis, ou à l'ouverture.
-- **Arrivé et Terminé.** Notés dans l'admin ; le trajet part au carnet de
-  kilométrage (Réglages, « Kilométrage »). Sans réseau, le geste attend.
+  chaque séance suivante. La route ne part jamais de la position du téléphone.
+- **Tuile.** La séance en cours sur l'écran verrouillé, dans l'île dynamique et
+  dans CarPlay (iOS 26, petite version), avec le bouton « Arrivé » puis
+  « Terminé » (extension `PPTerrainActivite`, code commun dans `Partage/`). Apple
+  ne la laisse paraître qu'appli ouverte : au toucher d'un avis, ou à l'ouverture.
+- **Arrivé et Terminé.** Notés seuls par le GPS (`Presence.swift`) : un cercle de
+  150 m autour de chaque séance d'aujourd'hui et de demain ; l'entrée note
+  l'arrivée (d'une heure avant à une heure après la fin prévue), la sortie note la
+  fin (au moins 10 min plus tard). Permission « Toujours » ; aucune position ne
+  quitte le téléphone. Les boutons de la fiche et de la tuile restent pour les
+  ratés. Le trajet part au carnet de kilométrage (Réglages, « Kilométrage »), en
+  kilomètres de la route. Sans réseau, le geste attend.
 
 ## Ce qu'elle ne fait jamais
 

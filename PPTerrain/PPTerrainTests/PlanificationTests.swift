@@ -78,6 +78,32 @@ final class PlanificationTests: XCTestCase {
         XCTAssertNil(Planification.etat(journee: [premiere, seconde], routes: routes, arrivees: [:], fins: [1: .now, 2: .now], maintenant: date("2026-11-26T12:10:00-05:00")))
     }
 
+    func testLeBoutonDeLaTuileSuitLEtape() {
+        let premiere = seance(1, "2026-11-26T09:00:00-05:00", "2026-11-26T10:00:00-05:00", ville: "Oka")
+        let routes = [1: Trajet(minutes: 14, km: 10)]
+        let enRoute = Planification.etat(journee: [premiere], routes: routes, arrivees: [:], fins: [:], maintenant: date("2026-11-26T08:50:00-05:00"))
+        XCTAssertEqual(enRoute?.seance, 1)
+        XCTAssertEqual(enRoute?.bouton, "Arrivé")
+        let surPlace = Planification.etat(journee: [premiere], routes: routes, arrivees: [1: date("2026-11-26T08:55:00-05:00")], fins: [:], maintenant: date("2026-11-26T09:10:00-05:00"))
+        XCTAssertEqual(surPlace?.bouton, "Terminé")
+    }
+
+    func testLeGpsNeNoteQueDansLaBonneFenetre() {
+        let s = seance(1, "2026-11-26T10:00:00-05:00", "2026-11-26T11:00:00-05:00", ville: "Oka")
+
+        XCTAssertFalse(Planification.arriveeAuto(s, arrivee: nil, fin: nil, maintenant: date("2026-11-25T16:00:00-05:00")), "Passer devant la veille.")
+        XCTAssertFalse(Planification.arriveeAuto(s, arrivee: nil, fin: nil, maintenant: date("2026-11-26T08:50:00-05:00")))
+        XCTAssertTrue(Planification.arriveeAuto(s, arrivee: nil, fin: nil, maintenant: date("2026-11-26T09:50:00-05:00")))
+        XCTAssertFalse(Planification.arriveeAuto(s, arrivee: date("2026-11-26T09:50:00-05:00"), fin: nil, maintenant: date("2026-11-26T09:55:00-05:00")), "Déjà arrivé.")
+        XCTAssertFalse(Planification.arriveeAuto(seance(2, "2026-11-26T10:00:00-05:00", "2026-11-26T11:00:00-05:00", ville: "Oka", statut: "en_attente"), arrivee: nil, fin: nil, maintenant: date("2026-11-26T09:50:00-05:00")))
+
+        let arrive = date("2026-11-26T09:50:00-05:00")
+        XCTAssertFalse(Planification.finAuto(s, arrivee: nil, fin: nil, maintenant: date("2026-11-26T11:00:00-05:00")), "Jamais de fin sans arrivée.")
+        XCTAssertFalse(Planification.finAuto(s, arrivee: arrive, fin: nil, maintenant: date("2026-11-26T09:55:00-05:00")), "Un aller-retour au camion.")
+        XCTAssertTrue(Planification.finAuto(s, arrivee: arrive, fin: nil, maintenant: date("2026-11-26T10:52:00-05:00")))
+        XCTAssertFalse(Planification.finAuto(s, arrivee: arrive, fin: date("2026-11-26T10:50:00-05:00"), maintenant: date("2026-11-26T10:52:00-05:00")))
+    }
+
     func testUnGesteSeRelit() throws {
         let geste = Geste(rendezVous: 46, sorte: .arrivee, a: date("2026-11-26T08:58:00-05:00"), km: 10.4, minutes: 14)
         let relu = try Format.decodeur.decode([Geste].self, from: Format.encodeur.encode([geste]))
