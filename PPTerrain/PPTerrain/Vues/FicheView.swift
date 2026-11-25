@@ -22,7 +22,7 @@ struct FicheView: View {
                     }
                 }
                 if let lien = seance.lienPlans {
-                    Button { ouvrir(lien) } label: { Label("Itinéraire dans Plans", systemImage: "car.fill") }
+                    Button { ouvrir(lien) } label: { Label("Itinéraire dans Google Maps", systemImage: "car.fill") }
                 }
             }
 

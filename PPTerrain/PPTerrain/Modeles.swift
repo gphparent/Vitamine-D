@@ -53,14 +53,21 @@ struct RendezVous: Codable, Identifiable, Hashable {
         return morceaux.isEmpty ? "Adresse à venir" : morceaux.joined(separator: ", ")
     }
 
-    /// L'itinéraire dans Plans : par les coordonnées quand on les a, sinon par l'adresse.
+    /// L'itinéraire dans Google Maps (Guillaume, 25 nov. : pas Plans). Le lien universel ouvre l'appli Google Maps,
+    /// ou le navigateur quand elle n'est pas installée. Par l'adresse d'abord : Google trouve le numéro civique,
+    /// alors que nos coordonnées ne sont parfois que le milieu de la rue.
     var lienPlans: URL? {
-        var parties = URLComponents(string: "maps://")!
-        if let latitude, let longitude {
-            parties.queryItems = [URLQueryItem(name: "daddr", value: "\(latitude),\(longitude)"), URLQueryItem(name: "dirflg", value: "d")]
+        var parties = URLComponents(string: "https://www.google.com/maps/dir/")!
+        let destination: String?
+        if let adresse, !adresse.isEmpty {
+            destination = [adresse, ville].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
+        } else if let latitude, let longitude {
+            destination = "\(latitude),\(longitude)"
         } else {
-            parties.queryItems = [URLQueryItem(name: "daddr", value: lieu), URLQueryItem(name: "dirflg", value: "d")]
+            destination = nil
         }
+        guard let destination else { return nil }
+        parties.queryItems = [URLQueryItem(name: "api", value: "1"), URLQueryItem(name: "destination", value: destination), URLQueryItem(name: "travelmode", value: "driving")]
         return parties.url
     }
 }
