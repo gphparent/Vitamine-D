@@ -12,6 +12,8 @@ téléphone** pour les endroits sans réseau.
 
 ## Ce qu'elle fait
 
+Trois onglets en bas : Séances, Semaine, Tâches.
+
 - **Séances.** Celles du photographe connecté, par jour, à partir d'aujourd'hui.
   Chaque retour dans l'appli, avec du réseau, remplace la copie gardée sur le
   téléphone.
