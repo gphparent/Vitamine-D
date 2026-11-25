@@ -13,11 +13,11 @@ struct ListeView: View {
                         .foregroundStyle(.orange)
                 }
 
-                if magasin.semaine != nil && magasin.rendezVous.isEmpty {
-                    ContentUnavailableView("Aucune séance cette semaine", systemImage: "calendar", description: Text("Les séances des huit prochains jours apparaîtront ici."))
+                if magasin.semaine != nil && magasin.aVenir().isEmpty {
+                    ContentUnavailableView("Aucune séance à venir", systemImage: "calendar", description: Text("Les séances des prochains jours apparaîtront ici."))
                 }
 
-                ForEach(Format.parJour(magasin.rendezVous)) { groupe in
+                ForEach(Format.parJour(magasin.aVenir())) { groupe in
                     Section(Format.jour(groupe.jour).capitalized(with: Format.langue)) {
                         ForEach(groupe.seances) { seance in
                             NavigationLink(value: seance) { LigneSeance(seance: seance) }

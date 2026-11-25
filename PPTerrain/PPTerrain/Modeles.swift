@@ -7,11 +7,77 @@ struct Semaine: Codable {
     let photographe: String?
     /// Le point de départ inscrit dans Réglages (le milieu de la rue) ; absent des copies d'avant le 25 nov.
     let depart: Point?
+    /// Du lundi de cette semaine à la fin de la suivante (depuis le 25 nov.) ; la liste ne montre qu'à partir d'aujourd'hui.
     let rendezVous: [RendezVous]
+    /// Absentes des copies d'avant le 25 nov.
+    let taches: Taches?
 
     struct Point: Codable, Hashable {
         let latitude: Double
         let longitude: Double
+    }
+}
+
+/// Ce qui attend le photographe après ses séances (Guillaume, 25 nov.), comme « Mes tâches » de l'admin.
+/// Jamais la facture ni le paiement : c'est la coordination.
+struct Taches: Codable, Hashable {
+    let photos: [PhotosAEnvoyer]
+    let retouches: [Retouche]
+    let equipe: [DeLaCoordination]
+
+    var nombre: Int { photos.count + retouches.count + equipe.count }
+
+    struct PhotosAEnvoyer: Codable, Identifiable, Hashable {
+        let id: Int
+        let debut: Date?
+        let adresse: String?
+        let ville: String?
+        let forfait: String?
+        /// Téléversées, HDR, retouchées, plan… selon le forfait.
+        let etapes: [Etape]
+
+        var faites: Int { etapes.filter(\.faite).count }
+    }
+
+    struct Etape: Codable, Hashable {
+        let cle: String
+        let nom: String
+        let faite: Bool
+    }
+
+    struct Retouche: Codable, Identifiable, Hashable {
+        let id: Int
+        let adresse: String?
+        let ville: String?
+        let soumiseAt: Date?
+        let message: String?
+        let photos: [Photo]
+
+        struct Photo: Codable, Hashable {
+            let nom: String?
+            let note: String?
+        }
+    }
+
+    struct DeLaCoordination: Codable, Identifiable, Hashable {
+        let id: Int
+        let titre: String
+        let details: String?
+        /// « 2026-11-26 »
+        let echeance: String?
+
+        var jour: Date? {
+            guard let echeance else { return nil }
+            let f = DateFormatter()
+            f.timeZone = Format.fuseau
+            f.dateFormat = "yyyy-MM-dd"
+            return f.date(from: echeance)
+        }
+
+        func enRetard(maintenant: Date = .now) -> Bool {
+            guard let jour else { return false }
+            return jour < Format.calendrier.startOfDay(for: maintenant)
+        }
     }
 }
 
@@ -159,6 +225,15 @@ enum Format {
         let jour: Date
         let seances: [RendezVous]
         var id: Date { jour }
+    }
+
+    /// Le lundi de la semaine de cette date, à minuit.
+    static func lundi(de date: Date) -> Date {
+        let cal = calendrier
+        let jour = cal.startOfDay(for: date)
+        // weekday : 1 = dimanche, 2 = lundi…
+        let recul = (cal.component(.weekday, from: jour) + 5) % 7
+        return cal.date(byAdding: .day, value: -recul, to: jour)!
     }
 
     /// Les séances regroupées par jour, dans l'ordre.

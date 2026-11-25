@@ -104,6 +104,28 @@ final class PlanificationTests: XCTestCase {
         XCTAssertFalse(Planification.finAuto(s, arrivee: arrive, fin: date("2026-11-26T10:50:00-05:00"), maintenant: date("2026-11-26T10:52:00-05:00")))
     }
 
+    func testLaSemaineCommenceLeLundi() {
+        // Le mercredi 25 novembre 2026 : lundi 23. Le dimanche 29 aussi.
+        XCTAssertEqual(Format.calendrier.component(.day, from: Format.lundi(de: date("2026-11-25T15:00:00-05:00"))), 23)
+        XCTAssertEqual(Format.calendrier.component(.day, from: Format.lundi(de: date("2026-11-29T23:30:00-05:00"))), 23)
+        XCTAssertEqual(Format.calendrier.component(.day, from: Format.lundi(de: date("2026-11-30T00:10:00-05:00"))), 30)
+    }
+
+    func testLesTachesSeLisent() throws {
+        let json = """
+        {"photos": [{"id": 4, "debut": "2026-11-20T10:00:00-05:00", "adresse": "9 Rue des Pins", "ville": "Oka", "forfait": null,
+          "etapes": [{"cle": "televersees", "nom": "Photos téléversées", "faite": true}, {"cle": "hdr", "nom": "HDR effectué", "faite": false}]}],
+         "retouches": [{"id": 2, "adresse": "9 Rue des Pins", "ville": "Oka", "soumise_at": "2026-11-24T08:00:00-05:00", "message": null,
+          "photos": [{"nom": "03.jpg", "note": "Retirer la poubelle"}]}],
+         "equipe": [{"id": 7, "titre": "Rapporter le drone", "details": null, "echeance": "2026-11-23"}]}
+        """
+        let taches = try Format.decodeur.decode(Taches.self, from: Data(json.utf8))
+        XCTAssertEqual(taches.nombre, 3)
+        XCTAssertEqual(taches.photos[0].faites, 1)
+        XCTAssertTrue(taches.equipe[0].enRetard(maintenant: date("2026-11-25T09:00:00-05:00")))
+        XCTAssertFalse(taches.equipe[0].enRetard(maintenant: date("2026-11-23T09:00:00-05:00")))
+    }
+
     func testUnGesteSeRelit() throws {
         let geste = Geste(rendezVous: 46, sorte: .arrivee, a: date("2026-11-26T08:58:00-05:00"), km: 10.4, minutes: 14)
         let relu = try Format.decodeur.decode([Geste].self, from: Format.encodeur.encode([geste]))

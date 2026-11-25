@@ -12,8 +12,15 @@ téléphone** pour les endroits sans réseau.
 
 ## Ce qu'elle fait
 
-- **Séances.** Celles du photographe connecté, par jour. Chaque retour dans
-  l'appli, avec du réseau, remplace la copie gardée sur le téléphone.
+- **Séances.** Celles du photographe connecté, par jour, à partir d'aujourd'hui.
+  Chaque retour dans l'appli, avec du réseau, remplace la copie gardée sur le
+  téléphone.
+- **Semaine.** Le calendrier du lundi au dimanche, cette semaine et la suivante ;
+  toucher une séance ouvre sa fiche.
+- **Tâches.** Comme « Mes tâches » de l'admin : photos à envoyer (étapes à
+  cocher, puis « Photos envoyées »), retouches demandées par les clients (faites,
+  en avisant le client ou non), tâches données par la coordination. Avec du
+  réseau seulement. Jamais la facture ni le paiement.
 - **Fiche.** Heure, adresse et itinéraire dans Google Maps, contacts (appel, texto),
   commande, précisions, accès (personne sur place, code reçu ou non).
 - **Fichiers et notes.** Ceux déposés sur le rendez-vous dans l'admin, téléchargés
@@ -56,7 +63,10 @@ s'efface à sa prochaine ouverture avec du réseau.
 `gphparent/pp-rendez-vous`, `app/Http/Controllers/Api/TerrainController.php` :
 `POST /api/terrain/connexion`, `GET /api/terrain/rendez-vous`,
 `GET /api/terrain/pieces/{id}`, `POST /api/terrain/rendez-vous/{id}/arrivee`,
-`POST /api/terrain/rendez-vous/{id}/termine`, `POST /api/terrain/deconnexion`.
+`POST /api/terrain/rendez-vous/{id}/termine`,
+`POST /api/terrain/rendez-vous/{id}/etape`, `POST /api/terrain/rendez-vous/{id}/photos-envoyees`,
+`POST /api/terrain/taches/{id}/faite`, `POST /api/terrain/retouches/{id}/faite`,
+`POST /api/terrain/deconnexion`. Les tâches arrivent avec les séances, sous `taches`.
 
 ## Développement
 

@@ -60,6 +60,31 @@ final class Magasin {
 
     var rendezVous: [RendezVous] { semaine?.rendezVous ?? [] }
 
+    /// Pour la liste : d'aujourd'hui en avant ; le calendrier, lui, montre aussi le début de la semaine.
+    func aVenir(maintenant: Date = .now) -> [RendezVous] {
+        let aujourdhui = Format.calendrier.startOfDay(for: maintenant)
+        return rendezVous.filter { ($0.debut ?? .distantPast) >= aujourdhui }
+    }
+
+    var taches: Taches? { semaine?.taches }
+
+    /// Un geste sur une tâche (étape cochée, photos envoyées, retouches faites…). Il part tout de suite, avec du
+    /// réseau seulement, puis la liste revient du serveur ; false s'il n'est pas passé.
+    func tache(_ chemin: String, corps: [String: Any] = [:]) async -> Bool {
+        guard let jeton = Trousseau.lire() else { return false }
+        var requete = URLRequest(url: Self.serveur.appendingPathComponent("api/terrain/" + chemin))
+        requete.httpMethod = "POST"
+        requete.setValue("Bearer \(jeton)", forHTTPHeaderField: "Authorization")
+        requete.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        requete.setValue("application/json", forHTTPHeaderField: "Accept")
+        requete.timeoutInterval = 20
+        requete.httpBody = try? JSONSerialization.data(withJSONObject: corps)
+
+        guard let resultat = try? await session.data(for: requete), (resultat.1 as? HTTPURLResponse)?.statusCode == 200 else { return false }
+        await synchroniser()
+        return true
+    }
+
     /// Le fichier sur le téléphone, s'il est déjà téléchargé.
     func local(_ piece: Piece) -> URL? {
         let url = fichiers.appendingPathComponent(piece.nomLocal)

@@ -5,7 +5,12 @@ struct RacineView: View {
 
     var body: some View {
         if magasin.connecte {
-            ListeView()
+            TabView {
+                Tab("Séances", systemImage: "list.bullet") { ListeView() }
+                Tab("Semaine", systemImage: "calendar") { CalendrierView() }
+                Tab("Tâches", systemImage: "checklist") { TachesView() }
+                    .badge(magasin.taches?.nombre ?? 0)
+            }
         } else {
             ConnexionView()
         }
