@@ -32,30 +32,42 @@ struct CalendrierView: View {
     }
 
     var body: some View {
+        // L'entête est épinglé dans la même ScrollView que la grille, sans barre de navigation : la barre d'iOS 26
+        // et un entête à part laissaient la moitié de l'écran vide au-dessus de la grille (Guillaume, 26 nov.).
         NavigationStack {
-            VStack(spacing: 0) {
-                entete
-                Divider()
-                ScrollView {
-                    grille
-                        .padding(.bottom, 12)
+            ScrollView {
+                LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
+                    Section {
+                        grille
+                            .padding(.bottom, 12)
+                    } header: {
+                        VStack(spacing: 0) {
+                            barre
+                            entete
+                            Divider()
+                        }
+                        .background(Color(.systemBackground))
+                    }
                 }
             }
-            .navigationTitle(titre)
-            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: RendezVous.self) { FicheView(seance: $0) }
             .refreshable { await magasin.synchroniser() }
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button { decalage = 0 } label: { Image(systemName: "chevron.left") }
-                        .disabled(decalage == 0)
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { decalage = 1 } label: { Image(systemName: "chevron.right") }
-                        .disabled(decalage == 1)
-                }
-            }
         }
+    }
+
+    /// Le titre et les flèches, sur une seule ligne serrée.
+    private var barre: some View {
+        HStack {
+            Button { decalage = 0 } label: { Image(systemName: "chevron.left").frame(width: 36, height: 36) }
+                .disabled(decalage == 0)
+            Spacer()
+            Text(titre).font(.headline)
+            Spacer()
+            Button { decalage = 1 } label: { Image(systemName: "chevron.right").frame(width: 36, height: 36) }
+                .disabled(decalage == 1)
+        }
+        .padding(.horizontal, 8)
     }
 
     private var titre: String {
