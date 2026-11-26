@@ -2,7 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- L'extension qui dessine la tuile de la séance (Live Activity). -->
+	<!-- Où lire les séances du widget « Prochaine séance », déposées par l'appli. -->
+	<key>GroupeTrousseau</key>
+	<string>$(AppIdentifierPrefix)ca.gphparent.PPTerrain.partage</string>
+	<!-- L'extension qui dessine la tuile de la séance (Live Activity) et le widget « Prochaine séance ». -->
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionPointIdentifier</key>

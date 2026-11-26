@@ -14,6 +14,9 @@
 			</array>
 		</dict>
 	</array>
+	<!-- Le groupe du trousseau où l'appli dépose les séances du widget « Prochaine séance » (Partage/Prochaines.swift). -->
+	<key>GroupeTrousseau</key>
+	<string>$(AppIdentifierPrefix)ca.gphparent.PPTerrain.partage</string>
 	<!-- L'arrivée et la fin des séances notées par le GPS (Presence.swift). -->
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>PP Terrain note l’heure de votre arrivée et de votre départ des séances. Aucune position n’est envoyée.</string>

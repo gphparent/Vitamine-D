@@ -6,6 +6,7 @@ import WidgetKit
 struct PPTerrainActiviteBundle: WidgetBundle {
     var body: some Widget {
         TuileSeance()
+        WidgetProchaine()
     }
 }
 

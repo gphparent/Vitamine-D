@@ -138,6 +138,7 @@ final class Magasin {
         routes = [:]
         connecte = false
         Presence.partage.surveiller([])
+        Prochaines.deposer([])
         Task {
             await AvisDepart.programmer([])
             await Tuile.afficher(nil, jour: .now)
@@ -337,6 +338,17 @@ final class Magasin {
         }
         let etat = Planification.etat(journee: aujourdhui, routes: routes, arrivees: arrivees, fins: fins, maintenant: maintenant)
         await Tuile.afficher(etat, jour: maintenant)
+        Prochaines.deposer(prochaines(maintenant: maintenant))
+    }
+
+    /// Pour le widget : les séances confirmées pas encore terminées, avec l'heure de départ quand la route est connue
+    /// (aujourd'hui et demain).
+    func prochaines(maintenant: Date) -> [ProchaineSeance] {
+        rendezVous
+            .filter { !$0.enAttente && $0.debut != nil && fin(de: $0) == nil && Planification.fin($0) > maintenant }
+            .sorted { $0.debut! < $1.debut! }
+            .prefix(20)
+            .map { ProchaineSeance(ville: $0.ville ?? "Séance", debut: $0.debut!, fin: Planification.fin($0), depart: depart(pour: $0)) }
     }
 
     private func telechargerFichiers(_ semaine: Semaine, jeton: String) async {

@@ -35,6 +35,14 @@ Trois onglets en bas : Séances, Semaine, Tâches.
   dans CarPlay (iOS 26, petite version), avec le bouton « Arrivé » puis
   « Terminé » (extension `PPTerrainActivite`, code commun dans `Partage/`). Apple
   ne la laisse paraître qu'appli ouverte : au toucher d'un avis, ou à l'ouverture.
+  Dans CarPlay, Apple la montre sans bouton : on ne la touche pas en conduisant.
+- **Widget « Prochaine séance ».** Petit widget (heure, ville, heure de départ),
+  sur l'écran d'accueil et dans CarPlay, à gauche du tableau de bord, une fois
+  choisi dans Réglages, Général, CarPlay, la voiture. Toujours là, sans permission
+  spéciale d'Apple. L'appli lui dépose ses séances à venir par un groupe du
+  trousseau partagé (`Partage/Prochaines.swift`) ; le jeton reste hors de sa portée.
+  Une vraie appli CarPlay avec son icône demanderait l'accord d'Apple (catégorie
+  « tâche de conduite ») : écarté le 26 nov.
 - **Arrivé et Terminé.** Notés seuls par le GPS (`Presence.swift`) : un cercle de
   150 m autour de chaque séance d'aujourd'hui et de demain ; l'entrée note
   l'arrivée (d'une heure avant à une heure après la fin prévue), la sortie note la
