@@ -20,23 +20,27 @@ struct Semaine: Codable {
     }
 }
 
-/// Les factures envoyées dans le mois et leur total, avant taxes (Guillaume, 27 nov.). Un aperçu tiré de l'étape
-/// « Facturé » de chaque rendez-vous, à revoir quand QuickBooks fera les factures.
+/// Ses séances faites dans le mois, facturées ou non, et la part qui lui revient, avant taxes (Guillaume, 27 nov.).
+/// Un aperçu, à revoir quand QuickBooks fera les factures.
 struct Finances: Codable, Hashable {
     let mois: String
-    let total: Int
+    let total: Double
     let nombre: Int
+    /// Séances dont la part n'est pas encore connue (pourcentage pas inscrit) : hors du total.
+    let aRegler: Int?
     let factures: [Facture]
 
     struct Facture: Codable, Identifiable, Hashable {
         let id: Int
-        let factureLe: Date
+        let le: Date
         let client: String?
         let adresse: String?
         let ville: String?
         let photographe: String?
-        let montant: Int
-        let payee: Bool
+        /// Sa part ; nil tant qu'elle n'est pas connue.
+        let montant: Double?
+        /// « À facturer », « Facturée » ou « Payée ».
+        let etat: String
     }
 }
 

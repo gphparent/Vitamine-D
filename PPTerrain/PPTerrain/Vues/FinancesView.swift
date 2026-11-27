@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Les factures envoyées ce mois-ci et leur total (Guillaume, 27 nov.). L'onglet n'existe que pour qui voit l'argent.
+/// Ses séances faites ce mois-ci, facturées ou non, et la part qui lui revient (Guillaume, 27 nov.). L'onglet n'existe que pour qui voit l'argent.
 struct FinancesView: View {
     @Environment(Magasin.self) private var magasin
 
@@ -10,25 +10,30 @@ struct FinancesView: View {
                 if let finances = magasin.semaine?.finances {
                     Section {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(Self.mois(finances.mois)).font(.subheadline).foregroundStyle(.secondary)
+                            Text("Ma part · " + Self.mois(finances.mois)).font(.headline)
                             Text(Self.argent(finances.total)).font(.largeTitle.bold())
-                            Text((finances.nombre > 1 ? "\(finances.nombre) factures envoyées" : "\(finances.nombre) facture envoyée") + " · avant taxes")
+                            Text((finances.nombre > 1 ? "\(finances.nombre) séances" : "\(finances.nombre) séance") + " · avant taxes")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
+                            if let aRegler = finances.aRegler, aRegler > 0 {
+                                Text(aRegler > 1 ? "\(aRegler) séances sans part connue, hors du total" : "1 séance sans part connue, hors du total")
+                                    .font(.footnote)
+                                    .foregroundStyle(.orange)
+                            }
                         }
                         .padding(.vertical, 6)
                     }
 
                     if finances.factures.isEmpty {
-                        Text("Aucune facture envoyée ce mois-ci.").foregroundStyle(.secondary)
+                        Text("Aucune séance faite ce mois-ci.").foregroundStyle(.secondary)
                     } else {
-                        Section("Factures") {
+                        Section("Ma part par séance") {
                             ForEach(finances.factures) { LigneFacture(facture: $0) }
                         }
                     }
 
                     Section {
-                        Text("Aperçu tiré de l’étape « Facturé » de chaque rendez-vous. Il sera revu quand QuickBooks fera les factures.")
+                        Text("Toutes les séances faites dans le mois, facturées ou non. Aperçu, revu quand QuickBooks fera les factures.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -39,8 +44,8 @@ struct FinancesView: View {
         }
     }
 
-    static func argent(_ montant: Int) -> String {
-        montant.formatted(.number.locale(Locale(identifier: "fr_CA"))) + " $"
+    static func argent(_ montant: Double) -> String {
+        montant.formatted(.number.precision(.fractionLength(0...2)).locale(Locale(identifier: "fr_CA"))) + " $"
     }
 
     /// « 2026-11 » devient « Novembre 2026 ».
@@ -64,16 +69,16 @@ private struct LigneFacture: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(facture.client ?? "Client inconnu").font(.body.weight(.semibold))
                 Text(TachesView.lieu(facture.adresse, facture.ville)).font(.subheadline).foregroundStyle(.secondary)
-                Text("Facturée le " + facture.factureLe.formatted(.dateTime.day().month(.wide).locale(Locale(identifier: "fr_CA"))))
+                Text(facture.le.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(Locale(identifier: "fr_CA"))))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 3) {
-                Text(FinancesView.argent(facture.montant)).font(.body.weight(.semibold))
-                Text(facture.payee ? "Payée" : "À encaisser")
+                Text(facture.montant.map(FinancesView.argent) ?? "Part à régler").font(.body.weight(.semibold))
+                Text(facture.etat)
                     .font(.footnote)
-                    .foregroundStyle(facture.payee ? .green : .orange)
+                    .foregroundStyle(facture.etat == "Payée" ? .green : .orange)
             }
         }
     }
