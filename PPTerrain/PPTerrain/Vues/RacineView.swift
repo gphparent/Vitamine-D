@@ -10,6 +10,9 @@ struct RacineView: View {
                 Tab("Semaine", systemImage: "calendar") { CalendrierView() }
                 Tab("Tâches", systemImage: "checklist") { TachesView() }
                     .badge(magasin.taches?.nombre ?? 0)
+                if magasin.semaine?.finances != nil {
+                    Tab("Finances", systemImage: "dollarsign.circle") { FinancesView() }
+                }
             }
         } else {
             ConnexionView()

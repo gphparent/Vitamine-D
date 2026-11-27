@@ -11,10 +11,32 @@ struct Semaine: Codable {
     let rendezVous: [RendezVous]
     /// Absentes des copies d'avant le 25 nov.
     let taches: Taches?
+    /// Le mois en cours, pour qui voit l'argent seulement (27 nov.) ; sinon absent, et l'onglet aussi.
+    let finances: Finances?
 
     struct Point: Codable, Hashable {
         let latitude: Double
         let longitude: Double
+    }
+}
+
+/// Les factures envoyées dans le mois et leur total, avant taxes (Guillaume, 27 nov.). Un aperçu tiré de l'étape
+/// « Facturé » de chaque rendez-vous, à revoir quand QuickBooks fera les factures.
+struct Finances: Codable, Hashable {
+    let mois: String
+    let total: Int
+    let nombre: Int
+    let factures: [Facture]
+
+    struct Facture: Codable, Identifiable, Hashable {
+        let id: Int
+        let factureLe: Date
+        let client: String?
+        let adresse: String?
+        let ville: String?
+        let photographe: String?
+        let montant: Int
+        let payee: Bool
     }
 }
 
